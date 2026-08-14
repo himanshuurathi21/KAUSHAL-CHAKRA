@@ -104,17 +104,17 @@ build via GitHub Actions — see `.github/workflows/ci.yml`.
 
 ## Free deployment (Render)
 
-The repo ships a `render.yaml` blueprint. Everything (PostgreSQL + API + web
-UI) is provisioned for free:
+The repo ships a `render.yaml` blueprint. One web service builds the backend
+**and** the frontend (Express serves the built React app itself), plus a free
+PostgreSQL database:
 
 1. Create a free account at [render.com](https://render.com) with **"Sign up with GitHub"**.
 2. Click **New → Blueprint → pick the `KAUSHAL-CHAKRA` repo**.
-3. Render reads `render.yaml` and creates the database, API and web app.
+3. Render reads `render.yaml` and provisions the web service + database.
    Free services sleep after 15 min idle and wake on the first request.
 
-Resulting URLs:
-- Web UI: `https://kaushalchakra-web.onrender.com`
-- API: `https://kaushalchakra-api.onrender.com`
+Resulting URL:
+- App (web UI + API): `https://kaushalchakra-app.onrender.com`
 
 > Note: Render's free PostgreSQL expires after 30 days — fine for demos/viva.
 > For a permanent free database use **Neon** (free tier) and swap the

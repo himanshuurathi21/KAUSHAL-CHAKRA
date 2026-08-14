@@ -30,6 +30,21 @@ app.use('/api', profileRoutes);
 app.use('/api', matchRoutes);
 app.use('/api', featureRoutes);
 
+// In production the built React app is served by Express itself, so a single
+// web service deploys the whole product (no separate static host needed).
+const path = require('path');
+const fs = require('fs');
+const distPath = path.join(__dirname, '../../frontend/dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  // SPA fallback — client-side routes (/match/:id, /exchanges, ...) reload
+  // cleanly; /api requests keep going to the API above.
+  app.get(/^(?!\/api).*/, (_req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+  console.log('Serving built frontend from frontend/dist');
+}
+
 // Central error handler — keeps error responses consistent
 app.use((err, _req, res, _next) => {
   console.error(err);

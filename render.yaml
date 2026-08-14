@@ -1,13 +1,15 @@
 # Render blueprint — free-tier deployment
 # Deploy: render.com pe GitHub login karo -> "New" -> "Blueprint" -> yeh repo
-# Everything (PostgreSQL + API + web UI) gets created automatically.
+# One web service builds BOTH the backend and the frontend; Express serves
+# the built React app itself (see backend/src/index.js). Only 2 resources —
+# both supported by the Render blueprint spec.
 services:
   - type: web
-    name: kaushalchakra-api
+    name: kaushalchakra-app
     runtime: node
     plan: free
     rootDir: backend
-    buildCommand: npm ci && npx prisma generate
+    buildCommand: npm ci && npx prisma generate && cd ../frontend && npm ci && npm run build && cd ../backend
     startCommand: npx prisma migrate deploy && node scripts/seed.js && node src/index.js
     healthCheckPath: /api/health
     envVars:
@@ -17,18 +19,6 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      - key: PORT
-        value: 4000
-
-  - type: static
-    name: kaushalchakra-web
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: ./dist
-    routes:
-      - type: rewrite
-        source: /api/*
-        destination: https://kaushalchakra-api.onrender.com/api/*
 
 databases:
   - name: kaushalchakra-db
