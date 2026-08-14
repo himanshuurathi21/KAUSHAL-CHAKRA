@@ -1,0 +1,42 @@
+const express = require('express');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+require('dotenv').config();
+
+const authRoutes = require('./routes/authRoutes');
+const profileRoutes = require('./routes/profileRoutes');
+const matchRoutes = require('./routes/matchRoutes');
+const featureRoutes = require('./routes/featureRoutes');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Brute-force guard: max 20 login/signup attempts per IP per 15 minutes.
+// The rest of the API is JWT-protected, so a global limit isn't needed.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many attempts — please wait 15 minutes and try again.' },
+});
+app.use('/api/auth', authLimiter);
+
+app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'kaushalchakra-backend' }));
+
+app.use('/api/auth', authRoutes);
+app.use('/api', profileRoutes);
+app.use('/api', matchRoutes);
+app.use('/api', featureRoutes);
+
+// Central error handler — keeps error responses consistent
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  res.status(500).json({ error: 'Internal server error', detail: err.message });
+});
+
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`KaushalChakra backend listening on http://localhost:${PORT}`);
+});

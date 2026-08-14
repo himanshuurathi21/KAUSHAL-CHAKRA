@@ -1,0 +1,38 @@
+# KaushalChakra — one-command demo stack (PostgreSQL + API + web UI)
+# Usage: docker compose up --build   then open http://localhost:8080
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: kaushalchakra
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kaushalchakra"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/kaushalchakra?schema=public
+      JWT_SECRET: NovYs7e6j4mmjOi2S7HZZCni07uGajGyrkjxLjz799AQ4EWBcZMncLA7/F+Ja570
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

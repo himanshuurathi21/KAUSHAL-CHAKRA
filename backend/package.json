@@ -1,0 +1,30 @@
+{
+  "name": "kaushalchakra-backend",
+  "version": "1.0.0",
+  "description": "KaushalChakra - skill bartering platform backend (Express + Prisma + PostgreSQL)",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "migrate": "prisma migrate dev",
+    "seed": "node scripts/seed.js",
+    "smoke": "node scripts/smoke.js",
+    "test": "vitest run"
+  },
+  "prisma": {
+    "seed": "node scripts/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.6.2",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "prisma": "^6.1.0",
+    "vitest": "^3.0.0"
+  }
+}
