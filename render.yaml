@@ -20,10 +20,8 @@ services:
       - key: PORT
         value: 4000
 
-  - type: web
+  - type: static
     name: kaushalchakra-web
-    runtime: static
-    plan: free
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
