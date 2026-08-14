@@ -97,6 +97,29 @@ docker compose up --build     # web UI at http://localhost:8080, API at :4000
 The backend runs migrations and seeds the demo data automatically on startup;
 existing progress is preserved across restarts (set `SEED_FRESH=1` to wipe).
 
+## CI (free)
+
+Every push to `master` runs the backend unit tests and a production frontend
+build via GitHub Actions — see `.github/workflows/ci.yml`.
+
+## Free deployment (Render)
+
+The repo ships a `render.yaml` blueprint. Everything (PostgreSQL + API + web
+UI) is provisioned for free:
+
+1. Create a free account at [render.com](https://render.com) with **"Sign up with GitHub"**.
+2. Click **New → Blueprint → pick the `KAUSHAL-CHAKRA` repo**.
+3. Render reads `render.yaml` and creates the database, API and web app.
+   Free services sleep after 15 min idle and wake on the first request.
+
+Resulting URLs:
+- Web UI: `https://kaushalchakra-web.onrender.com`
+- API: `https://kaushalchakra-api.onrender.com`
+
+> Note: Render's free PostgreSQL expires after 30 days — fine for demos/viva.
+> For a permanent free database use **Neon** (free tier) and swap the
+> `DATABASE_URL` in the service's environment variables.
+
 ## Project structure
 
 ```
