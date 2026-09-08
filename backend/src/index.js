@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
@@ -9,19 +11,44 @@ const matchRoutes = require('./routes/matchRoutes');
 const featureRoutes = require('./routes/featureRoutes');
 
 const app = express();
-app.use(cors());
+
+// Security headers (incl. CSP + no X-Powered-By). The built React app is a
+// single JS/CSS bundle with no inline scripts, so default CSP is compatible.
+app.use(helmet());
+app.use(cookieParser());
+
+// CORS: the browser app authenticates with cookies, so cross-origin calls
+// (Vite dev on :5173 -> API on :4000) need credentials + an allowlisted
+// origin. Same-origin production traffic is unaffected. In production, set
+// FRONTEND_URL to the deployed web origin.
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      // No Origin header (curl, smoke tests, server-to-server) -> allow.
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error('CORS: origin not allowed'));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
-// Brute-force guard: max 20 login/signup attempts per IP per 15 minutes.
-// The rest of the API is JWT-protected, so a global limit isn't needed.
-const authLimiter = rateLimit({
+// Brute-force guard lives on POST /api/auth/signup + /login (see
+// authRoutes.js) so session-validated calls never burn the budget.
+// Backstop limiter for the rest of the API: generous enough for chat
+// polling + parallel QA (600/15min per IP), strict enough to blunt abuse.
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: 600,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  message: { error: 'Too many attempts — please wait 15 minutes and try again.' },
+  message: { error: 'Too many requests — please slow down and try again.' },
 });
-app.use('/api/auth', authLimiter);
+app.use('/api', apiLimiter);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'kaushalchakra-backend' }));
 

@@ -16,16 +16,16 @@ function LevelEditor({ skills, selected, levels, fallback, onLevel, verifiedIds 
       {chosen.map((skill) => (
         <label
           key={skill.id}
-          className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg pl-3 pr-1.5 py-1.5 text-sm text-indigo-100"
+          className="flex items-center gap-2 bg-white border border-line rounded-lg pl-3 pr-1.5 py-1.5 text-sm text-ink"
         >
           {skill.name}
           {verifiedIds?.has(skill.id) && (
-            <span className="text-emerald-300 text-xs font-bold" title="Level verified">✓</span>
+            <span className="text-leaf text-xs font-bold" title="Level verified">✓</span>
           )}
           <select
             value={levels[skill.id] || fallback}
             onChange={(e) => onLevel(skill.id, e.target.value)}
-            className="bg-indigo-900/60 border border-white/10 rounded-md text-xs text-white px-1.5 py-1 cursor-pointer"
+            className="bg-parchment border border-line rounded-md text-xs text-ink px-1.5 py-1 cursor-pointer"
           >
             {LEVELS.map((l) => (
               <option key={l} value={l}>
@@ -124,14 +124,14 @@ export default function SetupSkills() {
     }
   };
 
-  const section = 'bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4';
-  const sectionTitle = 'text-white font-semibold flex items-center gap-2';
+  const section = 'kc-card p-6 space-y-4';
+  const sectionTitle = 'kc-display text-lg text-ink font-bold flex items-center gap-2';
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Pick your skills</h1>
-        <p className="text-indigo-200 text-sm mt-1">
+        <h1 className="kc-display text-3xl font-bold text-ink">Pick your skills</h1>
+        <p className="text-muted text-sm mt-1">
           Choose from the fixed taxonomy — no free-text, so matching stays precise.
           Set your proficiency level for each skill; it is used to pick the
           best-fit cycle when several are possible. Saving re-runs matching.
@@ -139,35 +139,35 @@ export default function SetupSkills() {
       </div>
 
       {user && user.name && (
-        <p className="text-indigo-200 text-sm">
-          Signed in as <span className="text-white font-semibold">{user.name}</span>
+        <p className="text-muted text-sm">
+          Signed in as <span className="text-ink font-semibold">{user.name}</span>
         </p>
       )}
 
       {skillsError && (
-        <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-400/30 rounded-lg px-3 py-2">
+        <p className="kc-alert-error">
           {skillsError} Nothing is selectable until the list loads.
         </p>
       )}
       {skillsLoading && (
-        <p className="text-indigo-200 text-sm">Loading the skill taxonomy…</p>
+        <p className="text-muted text-sm">Loading the skill taxonomy…</p>
       )}
 
       <div className={section}>
         <h2 className={sectionTitle}>
-          <span className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 text-sm">→</span>
+          <span className="kc-seal w-7 h-7 text-maroon text-sm">→</span>
           Skills you can teach
         </h2>
         <SkillPicker skills={skills} selected={offered} onToggle={(id) => toggle(setOffered, setOfferedLevels, 'INTERMEDIATE', id)} />
         <LevelEditor skills={skills} selected={offered} levels={offeredLevels} fallback="INTERMEDIATE" verifiedIds={verifiedIds} onLevel={(id, l) => setLevel(setOfferedLevels, id, l)} />
-        <p className="text-indigo-300/70 text-xs">
-          Prove a level with a quiz or certificate in <Link to="/verify" className="text-indigo-300 underline">Verify Skills</Link> to earn a ✓ badge.
+        <p className="text-muted text-xs">
+          Prove a level with a quiz or certificate in <Link to="/verify" className="kc-link">Verify Skills</Link> to earn a ✓ badge.
         </p>
       </div>
 
       <div className={section}>
         <h2 className={sectionTitle}>
-          <span className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-300 text-sm">←</span>
+          <span className="kc-seal w-7 h-7 text-leaf text-sm">←</span>
           Skills you want to learn
         </h2>
         <SkillPicker skills={skills} selected={wanted} onToggle={(id) => toggle(setWanted, setWantedLevels, 'BEGINNER', id)} />
@@ -175,23 +175,23 @@ export default function SetupSkills() {
       </div>
 
       {error && (
-        <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-400/30 rounded-lg px-3 py-2">{error}</p>
+        <p className="kc-alert-error">{error}</p>
       )}
       {notice && (
-        <p className="text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-400/30 rounded-lg px-3 py-2">{notice}</p>
+        <p className="kc-alert-ok">{notice}</p>
       )}
 
       <div className="flex gap-3">
         <button
           onClick={save}
           disabled={busy}
-          className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer"
+          className="kc-btn"
         >
           {busy ? 'Saving…' : 'Save skills'}
         </button>
         <button
           onClick={() => navigate('/')}
-          className="px-6 py-2.5 rounded-lg bg-white/5 border border-white/10 text-indigo-200 hover:text-white cursor-pointer"
+          className="kc-btn kc-btn-ghost"
         >
           Cancel
         </button>

@@ -5,22 +5,17 @@ const api = axios.create({
   // directly; dev (proxy) and docker/prod (same origin) keep using /api.
   baseURL: import.meta.env.VITE_API_URL || '/api',
   timeout: 15000,
+  // The session lives in an httpOnly cookie — the browser attaches it
+  // automatically (required for cross-origin dev: :5173 -> :4000).
+  withCredentials: true,
 });
 
-// Attach the JWT to every request
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('kc_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-// On 401, drop the stale token and bounce to the auth page
+// On 401, bounce to the auth page (the session cookie is gone/invalid).
+// Login/signup failures (already on /auth) surface their own messages.
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('kc_token');
-      localStorage.removeItem('kc_user');
       if (!window.location.pathname.startsWith('/auth')) {
         window.location.href = '/auth';
       }

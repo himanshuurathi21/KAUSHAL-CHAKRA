@@ -152,22 +152,20 @@ export default function Verify() {
     }
   };
 
-  const card = 'bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4';
-  const inputCls =
-    'w-full bg-indigo-900/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-indigo-400/50 outline-none focus:border-indigo-400/60';
-  const selectCls = `${inputCls} cursor-pointer`;
+  const card = 'kc-card p-5 space-y-4';
+  const inputCls = 'kc-input';
+  const selectCls = 'kc-select';
 
   if (loadError) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
-        <h1 className="text-2xl font-bold text-white">Verify skills</h1>
-        <p className="text-rose-300">{loadError}</p>
-        <button
-          onClick={load}
-          className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 cursor-pointer"
-        >
-          Retry
-        </button>
+        <h1 className="kc-display text-3xl font-bold text-ink">Verify skills</h1>
+        <p className="kc-alert-error inline-block">{loadError}</p>
+        <div>
+          <button onClick={load} className="kc-btn">
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -177,32 +175,26 @@ export default function Verify() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Verify skills</h1>
-        <p className="text-indigo-200 text-sm mt-1">
+        <h1 className="kc-display text-3xl font-bold text-ink">Verify skills</h1>
+        <p className="text-muted text-sm mt-1">
           Prove your claimed level is real — pass a short quiz for an instant badge, or link a
           certificate for admin review. Verified levels show as ✓ wherever your skills appear.
         </p>
       </div>
 
       {(error || notice) && (
-        <p
-          className={`text-sm border rounded-lg px-3 py-2 ${
-            error
-              ? 'text-rose-300 bg-rose-500/10 border-rose-400/30'
-              : 'text-emerald-300 bg-emerald-500/10 border-emerald-400/30'
-          }`}
-        >
+        <p className={error ? 'kc-alert-error' : 'kc-alert-ok'}>
           {error || notice}
         </p>
       )}
 
       {/* My verification status per offered skill */}
       <div className={card}>
-        <h2 className="text-white font-semibold">Your offered skills</h2>
+        <h2 className="kc-display text-lg text-ink font-bold">Your offered skills</h2>
         {offered.length === 0 ? (
-          <p className="text-indigo-300/70 text-sm">
+          <p className="text-muted text-sm">
             You have not offered any skills yet.{' '}
-            <Link to="/skills" className="text-indigo-300 underline">Pick skills first</Link>.
+            <Link to="/skills" className="kc-link">Pick skills first</Link>.
           </p>
         ) : (
           <ul className="space-y-2">
@@ -213,24 +205,24 @@ export default function Verify() {
               return (
                 <li
                   key={o.id}
-                  className="flex flex-wrap items-center gap-2 text-sm bg-white/5 border border-white/10 rounded-xl px-3 py-2"
+                  className="flex flex-wrap items-center gap-2 text-sm bg-white border border-line rounded-xl px-3 py-2"
                 >
-                  <span className="text-white font-medium">{o.name}</span>
-                  <span className="text-indigo-300/70 text-xs">claimed {o.level}</span>
+                  <span className="text-ink font-medium">{o.name}</span>
+                  <span className="text-muted text-xs">claimed {o.level}</span>
                   {v ? (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300">
+                    <span className="kc-badge kc-badge-leaf">
                       ✓ Verified {v.claimedLevel}
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-white/10 text-indigo-300">
+                    <span className="kc-badge kc-badge-neutral">
                       Unverified
                     </span>
                   )}
                   {quiz && quiz.status === 'rejected' && (
-                    <span className="text-xs text-rose-300">quiz {quiz.score}/{quiz.total}</span>
+                    <span className="text-xs text-clay">quiz {quiz.score}/{quiz.total}</span>
                   )}
                   {cert && cert.status === 'pending' && (
-                    <span className="text-xs text-amber-300">certificate pending review</span>
+                    <span className="text-xs text-[#8a5c0e]">certificate pending review</span>
                   )}
                 </li>
               );
@@ -241,8 +233,8 @@ export default function Verify() {
 
       {/* Quiz */}
       <div className={card}>
-        <h2 className="text-white font-semibold">Take a quiz → instant badge</h2>
-        <p className="text-indigo-300/70 text-xs">
+        <h2 className="kc-display text-lg text-ink font-bold">Take a quiz → instant badge</h2>
+        <p className="text-muted text-xs">
           Quizzes exist for popular skills (Python, JavaScript, Guitar, Photography, Piano,
           Spanish, Cooking, Excel). Score at least 40% for Beginner, 60% for Intermediate, 80%
           for Expert.
@@ -264,16 +256,16 @@ export default function Verify() {
           <button
             onClick={startQuiz}
             disabled={busy || !quizSkill}
-            className="w-full py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+            className="kc-btn w-full"
           >
             {busy ? 'Loading…' : `Start ${quizSkillName || ''} quiz`}
           </button>
         ) : (
           <div className="space-y-4" data-testid="quiz-questions">
             {questions.map((q, i) => (
-              <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
-                <p className="text-sm text-white font-medium">
-                  {i + 1}. {q.q} <span className="text-indigo-400/60 text-xs">({q.level})</span>
+              <div key={i} className="bg-white border border-line rounded-xl p-3 space-y-2">
+                <p className="text-sm text-ink font-medium">
+                  {i + 1}. {q.q} <span className="text-muted text-xs">({q.level})</span>
                 </p>
                 <div className="grid sm:grid-cols-2 gap-2">
                   {q.options.map((opt, oi) => (
@@ -283,8 +275,8 @@ export default function Verify() {
                       onClick={() => setAnswers((a) => ({ ...a, [i]: oi }))}
                       className={`text-left text-sm px-3 py-2 rounded-lg border cursor-pointer ${
                         answers[i] === oi
-                          ? 'bg-indigo-500/30 border-indigo-400/60 text-white'
-                          : 'bg-indigo-900/40 border-white/10 text-indigo-100 hover:border-indigo-400/40'
+                          ? 'bg-maroon/10 border-maroon text-ink font-medium'
+                          : 'bg-white border-line text-muted hover:border-maroon/40'
                       }`}
                     >
                       {opt}
@@ -296,12 +288,12 @@ export default function Verify() {
             <button
               onClick={submitQuiz}
               disabled={busy || Object.keys(answers).length < questions.length}
-              className="w-full py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+              className="kc-btn kc-btn-leaf w-full"
             >
               {busy ? 'Grading…' : `Submit (${Object.keys(answers).length}/${questions.length} answered)`}
             </button>
             {result && (
-              <p className={`text-sm font-semibold ${result.passed ? 'text-emerald-300' : 'text-amber-300'}`}>
+              <p className={`text-sm font-semibold ${result.passed ? 'text-leaf' : 'text-[#8a5c0e]'}`}>
                 {result.passed
                   ? `✓ Passed — ${result.score}/${result.total} verifies ${quizLevel}`
                   : `✗ ${result.score}/${result.total} — below the ${quizLevel} bar`}
@@ -313,8 +305,8 @@ export default function Verify() {
 
       {/* Certificate */}
       <div className={card}>
-        <h2 className="text-white font-semibold">Link a certificate → admin review</h2>
-        <p className="text-indigo-300/70 text-xs">
+        <h2 className="kc-display text-lg text-ink font-bold">Link a certificate → admin review</h2>
+        <p className="text-muted text-xs">
           Got a course certificate (Coursera, Udemy, NPTEL…)? Paste its public verification link
           and an admin will approve it. No file uploads needed.
         </p>
@@ -354,7 +346,7 @@ export default function Verify() {
         <button
           onClick={submitCertificate}
           disabled={busy || !certSkill || !certUrl.trim()}
-          className="w-full py-2.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-500 text-white font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+          className="kc-btn w-full"
         >
           Submit for review
         </button>
@@ -363,22 +355,22 @@ export default function Verify() {
       {/* Attempt history */}
       {mine.length > 0 && (
         <div className={card}>
-          <h2 className="text-white font-semibold">My attempts</h2>
+          <h2 className="kc-display text-lg text-ink font-bold">My attempts</h2>
           <ul className="space-y-2">
             {mine.map((v) => (
-              <li key={v.id} className="flex flex-wrap items-center gap-2 text-sm bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-                <span className="text-white font-medium">{v.skill.name}</span>
-                <span className="text-indigo-300/70 text-xs">{v.method === 'QUIZ' ? 'quiz' : 'certificate'} · claimed {v.claimedLevel}</span>
+              <li key={v.id} className="flex flex-wrap items-center gap-2 text-sm bg-white border border-line rounded-xl px-3 py-2">
+                <span className="text-ink font-medium">{v.skill.name}</span>
+                <span className="text-muted text-xs">{v.method === 'QUIZ' ? 'quiz' : 'certificate'} · claimed {v.claimedLevel}</span>
                 {v.method === 'QUIZ' && v.score != null && (
-                  <span className="text-indigo-300/70 text-xs">{v.score}/{v.total}</span>
+                  <span className="text-muted text-xs">{v.score}/{v.total}</span>
                 )}
                 <span
-                  className={`ml-auto px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  className={`ml-auto kc-badge ${
                     v.status === 'approved'
-                      ? 'bg-emerald-500/20 text-emerald-300'
+                      ? 'kc-badge-leaf'
                       : v.status === 'pending'
-                        ? 'bg-amber-500/20 text-amber-300'
-                        : 'bg-rose-500/15 text-rose-300'
+                        ? 'kc-badge-amber'
+                        : 'kc-badge-clay'
                   }`}
                 >
                   {v.status}
@@ -392,20 +384,20 @@ export default function Verify() {
       {/* Admin review queue */}
       {user?.isAdmin && (
         <div className={card}>
-          <h2 className="text-white font-semibold">Review queue {pending.length > 0 && `(${pending.length})`}</h2>
+          <h2 className="kc-display text-lg text-ink font-bold">Review queue {pending.length > 0 && `(${pending.length})`}</h2>
           {pending.length === 0 ? (
-            <p className="text-indigo-300/70 text-sm">Nothing waiting for review.</p>
+            <p className="text-muted text-sm">Nothing waiting for review.</p>
           ) : (
             <ul className="space-y-2">
               {pending.map((v) => (
-                <li key={v.id} className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm space-y-1">
-                  <p className="text-white font-medium">
-                    {v.user.name} <span className="text-indigo-300/70 font-normal">claims {v.claimedLevel} in {v.skill.name}</span>
+                <li key={v.id} className="bg-white border border-line rounded-xl px-3 py-2 text-sm space-y-1">
+                  <p className="text-ink font-medium">
+                    {v.user.name} <span className="text-muted font-normal">claims {v.claimedLevel} in {v.skill.name}</span>
                   </p>
-                  <p className="text-indigo-300/70 text-xs">
+                  <p className="text-muted text-xs">
                     {v.method}
                     {v.evidenceUrl && (
-                      <> · <a href={v.evidenceUrl} target="_blank" rel="noreferrer" className="text-sky-300 underline break-all">{v.evidenceUrl}</a></>
+                      <> · <a href={v.evidenceUrl} target="_blank" rel="noreferrer" className="kc-link break-all">{v.evidenceUrl}</a></>
                     )}
                     {v.issuer && <> · {v.issuer}</>}
                     {v.note && <> · “{v.note}”</>}
@@ -414,14 +406,14 @@ export default function Verify() {
                     <button
                       onClick={() => review(v.id, true)}
                       disabled={busy}
-                      className="px-3 py-1 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+                      className="kc-btn kc-btn-leaf kc-btn-sm"
                     >
                       Approve
                     </button>
                     <button
                       onClick={() => review(v.id, false)}
                       disabled={busy}
-                      className="px-3 py-1 rounded-lg bg-rose-500/15 border border-rose-400/40 text-rose-300 text-xs font-semibold hover:bg-rose-500/25 disabled:opacity-40 cursor-pointer"
+                      className="kc-btn kc-btn-sm bg-clay border-[#7c2424] hover:bg-[#8a2a2a]"
                     >
                       Reject
                     </button>

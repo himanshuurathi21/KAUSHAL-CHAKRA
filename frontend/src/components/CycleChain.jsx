@@ -20,50 +20,50 @@ export default function CycleChain({ participants, myUserId }) {
         const isMe = p.userId === myUserId;
         return (
           <li key={p.id} className="flex flex-wrap items-center gap-3">
-            <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-3">
+            <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 bg-white border border-line rounded-xl p-3">
               <span className="flex items-center gap-2 min-w-40">
-                <span className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-fuchsia-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                <span className="kc-seal w-8 h-8 text-maroon text-xs font-bold shrink-0">
                   {initials(p.user.name)}
                 </span>
-                <span className={`font-semibold ${isMe ? 'text-amber-300' : 'text-white'}`}>
+                <span className={`font-semibold ${isMe ? 'text-maroon' : 'text-ink'}`}>
                   {isMe ? 'You' : p.user.name}
                 </span>
                 {!isMe && p.user.avgRating != null && (
-                  <span className="text-xs text-amber-300" title={`${p.user.ratingCount} rating(s)`}>
-                    ⭐ {p.user.avgRating.toFixed(1)}
+                  <span className="text-xs text-[#8a5c0e]" title={`${p.user.ratingCount} rating(s)`}>
+                    ★ {p.user.avgRating.toFixed(1)}
                   </span>
                 )}
               </span>
-              <span className="text-indigo-300 text-sm whitespace-nowrap hidden sm:block">teaches</span>
+              <span className="text-muted text-sm whitespace-nowrap hidden sm:block">teaches</span>
               <span className="flex items-center gap-2 w-fit">
-                <span className="px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-sm font-medium">
+                <span className="px-3 py-1 rounded-lg bg-maroon/10 border border-maroon/25 text-maroon text-sm font-medium">
                   {p.teachesSkill.name}
                 </span>
                 {p.teachesLevel && (
-                  <span className="px-2 py-0.5 rounded-md bg-white/10 border border-white/10 text-indigo-200 text-[10px] font-semibold uppercase tracking-wide">
+                  <span className="px-2 py-0.5 rounded-md bg-parchment border border-line text-muted text-[10px] font-semibold uppercase tracking-wide">
                     {p.teachesLevel}
                   </span>
                 )}
                 {isVerified(p.user?.verifiedLevels, p.teachesSkillId, p.teachesLevel) && (
-                  <span className="text-emerald-300 text-xs font-bold" title="Level verified by quiz or certificate">
+                  <span className="text-leaf text-xs font-bold" title="Level verified by quiz or certificate">
                     ✓
                   </span>
                 )}
               </span>
             </div>
-            <span className="text-indigo-400 shrink-0">→</span>
-            <div className="flex-1 flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-3 justify-end">
-              <span className="text-indigo-300 text-sm whitespace-nowrap hidden sm:block">to</span>
-              <span className="px-3 py-1 rounded-lg bg-sky-500/15 border border-sky-400/30 text-sky-300 text-sm font-medium w-fit">
+            <span className="text-maroon/60 shrink-0">→</span>
+            <div className="flex-1 flex items-center gap-2 bg-white border border-line rounded-xl p-3 justify-end">
+              <span className="text-muted text-sm whitespace-nowrap hidden sm:block">to</span>
+              <span className="px-3 py-1 rounded-lg bg-leaf/10 border border-leaf/25 text-leaf text-sm font-medium w-fit">
                 {next.userId === myUserId ? 'You' : next.user.name}
               </span>
               {next.learnsLevel && (
-                <span className="px-2 py-0.5 rounded-md bg-white/10 border border-white/10 text-indigo-200 text-[10px] font-semibold uppercase tracking-wide">
+                <span className="px-2 py-0.5 rounded-md bg-parchment border border-line text-muted text-[10px] font-semibold uppercase tracking-wide">
                   {next.learnsLevel}
                 </span>
               )}
             </div>
-            {i === chain.length - 1 && <span className="text-amber-300 shrink-0">↺</span>}
+            {i === chain.length - 1 && <span className="text-marigold shrink-0">↺</span>}
           </li>
         );
       })}

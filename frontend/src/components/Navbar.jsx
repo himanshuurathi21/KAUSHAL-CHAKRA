@@ -72,18 +72,19 @@ export default function Navbar() {
 
   const linkCls = ({ isActive }) =>
     `px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-      isActive ? 'bg-indigo-500/20 text-indigo-100' : 'text-indigo-200 hover:bg-white/10 hover:text-white'
+      isActive ? 'bg-maroon/10 text-maroon' : 'text-muted hover:bg-parchment hover:text-ink'
     }`;
 
   return (
-    <header className="bg-indigo-950/80 backdrop-blur border-b border-white/10 sticky top-0 z-20">
+    <header className="bg-card/95 backdrop-blur border-b border-line sticky top-0 z-20">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-fuchsia-500 flex items-center justify-center font-black text-white text-sm">
-            KC
-          </span>
-          <span className="font-bold text-white tracking-tight">
-            Kaushal<span className="text-indigo-300">Chakra</span>
+        <Link to="/" className="flex items-center gap-2.5">
+          <span className="kc-seal w-9 h-9 text-maroon font-black text-sm">क</span>
+          <span className="leading-tight">
+            <span className="kc-display block font-bold text-ink text-lg tracking-tight">
+              KaushalChakra
+            </span>
+            <span className="block text-[11px] text-muted tracking-wide">कौशलचक्र · trade skills, not money</span>
           </span>
         </Link>
 
@@ -106,29 +107,32 @@ export default function Navbar() {
               <div className="relative ml-1" ref={bellDesktopRef}>
                 <button
                   onClick={() => setOpen((o) => !o)}
-                  className="relative w-9 h-9 rounded-lg flex items-center justify-center text-indigo-200 hover:bg-white/10 hover:text-white cursor-pointer"
+                  className="relative w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-parchment hover:text-ink cursor-pointer"
                   aria-label="Notifications"
                 >
-                  <span className="text-lg leading-none">🔔</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                </svg>
                   {unread > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-clay text-white text-[10px] font-bold flex items-center justify-center">
                       {unread > 9 ? '9+' : unread}
                     </span>
                   )}
                 </button>
 
                 {open && (
-                  <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-indigo-950 border border-white/10 rounded-xl shadow-2xl p-2 space-y-1 z-30">
+                  <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-card border border-line rounded-xl shadow-xl p-2 space-y-1 z-30">
                     {unread > 0 && (
                       <button
                         onClick={markAllRead}
-                        className="w-full text-right text-xs font-medium text-indigo-300 hover:text-white px-3 py-1 cursor-pointer"
+                        className="w-full text-right text-xs font-medium text-maroon hover:text-maroon-deep px-3 py-1 cursor-pointer"
                       >
                         Mark all as read
                       </button>
                     )}
                     {notifications.length === 0 ? (
-                      <p className="text-sm text-indigo-300 px-3 py-4 text-center">No notifications yet.</p>
+                      <p className="text-sm text-muted px-3 py-4 text-center">No notifications yet.</p>
                     ) : (
                       notifications.map((n) => (
                         <NotificationItem key={n.id} notif={n} onRead={markRead} onNavigate={() => setOpen(false)} />
@@ -138,13 +142,13 @@ export default function Navbar() {
                 )}
               </div>
 
-              <div className="ml-3 pl-3 border-l border-white/10 hidden md:flex items-center gap-3">
-                <span className="text-sm text-indigo-200">
+              <div className="ml-3 pl-3 border-l border-line hidden md:flex items-center gap-3">
+                <span className="text-sm text-ink">
                   {user.name}
                 </span>
                 <button
                   onClick={logout}
-                  className="text-xs font-medium text-indigo-300 hover:text-white transition-colors"
+                  className="text-xs font-medium text-muted hover:text-maroon transition-colors"
                 >
                   Logout
                 </button>
@@ -156,28 +160,31 @@ export default function Navbar() {
               <div className="relative" ref={bellMobileRef}>
                 <button
                   onClick={() => setOpen((o) => !o)}
-                  className="relative w-9 h-9 rounded-lg flex items-center justify-center text-indigo-200 hover:bg-white/10 hover:text-white cursor-pointer"
+                  className="relative w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-parchment hover:text-ink cursor-pointer"
                   aria-label="Notifications"
                 >
-                  <span className="text-lg leading-none">🔔</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                </svg>
                   {unread > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-clay text-white text-[10px] font-bold flex items-center justify-center">
                       {unread > 9 ? '9+' : unread}
                     </span>
                   )}
                 </button>
                 {open && (
-                  <div className="absolute right-0 mt-2 w-72 max-h-96 overflow-y-auto bg-indigo-950 border border-white/10 rounded-xl shadow-2xl p-2 space-y-1 z-30">
+                  <div className="absolute right-0 mt-2 w-72 max-h-96 overflow-y-auto bg-card border border-line rounded-xl shadow-xl p-2 space-y-1 z-30">
                     {unread > 0 && (
                       <button
                         onClick={markAllRead}
-                        className="w-full text-right text-xs font-medium text-indigo-300 hover:text-white px-3 py-1 cursor-pointer"
+                        className="w-full text-right text-xs font-medium text-maroon hover:text-maroon-deep px-3 py-1 cursor-pointer"
                       >
                         Mark all as read
                       </button>
                     )}
                     {notifications.length === 0 ? (
-                      <p className="text-sm text-indigo-300 px-3 py-4 text-center">No notifications yet.</p>
+                      <p className="text-sm text-muted px-3 py-4 text-center">No notifications yet.</p>
                     ) : (
                       notifications.map((n) => (
                         <NotificationItem key={n.id} notif={n} onRead={markRead} onNavigate={() => setOpen(false)} />
@@ -188,7 +195,7 @@ export default function Navbar() {
               </div>
               <button
                 onClick={() => setMenuOpen((o) => !o)}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-indigo-200 hover:bg-white/10 hover:text-white cursor-pointer"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-muted hover:bg-parchment hover:text-ink cursor-pointer"
                 aria-label="Menu"
               >
                 <span className="text-xl leading-none">{menuOpen ? '✕' : '☰'}</span>
@@ -200,7 +207,7 @@ export default function Navbar() {
 
       {/* Mobile dropdown menu */}
       {user && menuOpen && (
-        <nav className="md:hidden border-t border-white/10 px-4 py-2 space-y-1">
+        <nav className="md:hidden border-t border-line px-4 py-2 space-y-1 bg-card">
           {NAV_LINKS.map((l) => (
             <NavLink
               key={l.to}
@@ -209,7 +216,7 @@ export default function Navbar() {
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
                 `block px-3 py-2 rounded-lg text-sm font-medium ${
-                  isActive ? 'bg-indigo-500/20 text-indigo-100' : 'text-indigo-200 hover:bg-white/10 hover:text-white'
+                  isActive ? 'bg-maroon/10 text-maroon' : 'text-ink hover:bg-parchment'
                 }`
               }
             >
@@ -222,16 +229,16 @@ export default function Navbar() {
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
                 `block px-3 py-2 rounded-lg text-sm font-medium ${
-                  isActive ? 'bg-indigo-500/20 text-indigo-100' : 'text-indigo-200 hover:bg-white/10 hover:text-white'
+                  isActive ? 'bg-maroon/10 text-maroon' : 'text-ink hover:bg-parchment'
                 }`
               }
             >
               Admin
             </NavLink>
           )}
-          <div className="flex items-center justify-between px-3 py-2 border-t border-white/10">
-            <span className="text-sm text-indigo-200 truncate">{user.name}</span>
-            <button onClick={logout} className="text-xs font-medium text-indigo-300 hover:text-white">
+          <div className="flex items-center justify-between px-3 py-2 border-t border-line">
+            <span className="text-sm text-ink truncate">{user.name}</span>
+            <button onClick={logout} className="text-xs font-medium text-muted hover:text-maroon">
               Logout
             </button>
           </div>
@@ -245,16 +252,16 @@ function NotificationItem({ notif: n, onRead, onNavigate }) {
   const body = (
     <>
       <span className="flex items-center justify-between gap-2">
-        <span className="text-indigo-200 font-semibold text-xs">
+        <span className="text-ink font-semibold text-xs">
           {TYPE_LABELS[n.type] || n.type}
         </span>
-        {!n.read && <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />}
+        {!n.read && <span className="w-2 h-2 rounded-full bg-maroon shrink-0" />}
       </span>
-      <span className="block text-indigo-100 mt-0.5">{n.content}</span>
+      <span className="block text-muted mt-0.5">{n.content}</span>
     </>
   );
   const cls = `block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
-    n.read ? 'opacity-60' : 'bg-white/5 hover:bg-white/10'
+    n.read ? 'opacity-60' : 'bg-parchment/60 hover:bg-parchment'
   }`;
   const handle = () => {
     onRead(n);

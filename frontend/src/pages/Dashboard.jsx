@@ -39,20 +39,19 @@ export default function Dashboard() {
   if (loadError) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
-        <p className="text-rose-300">{loadError}</p>
-        <button
-          onClick={load}
-          className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 cursor-pointer"
-        >
-          Retry
-        </button>
+        <p className="kc-alert-error inline-block">{loadError}</p>
+        <div>
+          <button onClick={load} className="kc-btn">
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!status) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-20 text-center text-indigo-200">
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center text-muted">
         Checking your match status…
       </div>
     );
@@ -61,14 +60,15 @@ export default function Dashboard() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
       <div className="text-center mb-10">
-        <h1 className="text-3xl font-bold text-white">
+        <p className="text-maroon text-xs font-bold uppercase tracking-[0.2em] mb-2">कौशलचक्र</p>
+        <h1 className="kc-display text-4xl font-bold text-ink">
           {status.status === 'proposed' && 'Match found!'}
           {status.status === 'confirmed' && 'Exchange confirmed'}
           {status.status === 'completed' && 'Exchange completed'}
           {status.status === 'waiting' && 'You are in the waiting pool'}
           {status.status === 'no-profile' && 'Set up your skills first'}
         </h1>
-        <p className="text-indigo-200 mt-2">
+        <p className="text-muted mt-2">
           {status.status === 'proposed' &&
             'A fair multi-person cycle is waiting for everyone to accept it.'}
           {status.status === 'confirmed' &&
@@ -83,67 +83,54 @@ export default function Dashboard() {
 
       {status.status === 'no-profile' && (
         <div className="text-center">
-          <button
-            onClick={() => navigate('/skills')}
-            className="px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 cursor-pointer"
-          >
+          <button onClick={() => navigate('/skills')} className="kc-btn">
             Choose skills
           </button>
         </div>
       )}
 
       {status.status === 'waiting' && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center space-y-4">
-          <div className="mx-auto w-14 h-14 rounded-full border-2 border-dashed border-indigo-400 animate-spin [animation-duration:3s] flex items-center justify-center text-indigo-300 text-2xl">
-            ↻
-          </div>
-          <p className="text-indigo-200 text-sm">
-            Meanwhile, <Link to="/skills" className="text-indigo-300 underline">tune your skills</Link> to unlock more cycles, or{' '}
-            <Link to="/credits" className="text-indigo-300 underline">teach now and earn a credit</Link> instead of waiting.
+        <div className="kc-card p-8 text-center space-y-4">
+          <div className="kc-seal mx-auto w-14 h-14 text-maroon text-2xl">↻</div>
+          <p className="text-muted text-sm">
+            Meanwhile, <Link to="/skills" className="kc-link">tune your skills</Link> to unlock more cycles, or{' '}
+            <Link to="/credits" className="kc-link">teach now and earn a credit</Link> instead of waiting.
           </p>
-          <button
-            onClick={runMatching}
-            disabled={busy}
-            className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer"
-          >
+          <button onClick={runMatching} disabled={busy} className="kc-btn">
             {busy ? 'Searching for cycles…' : 'Run matching now'}
           </button>
           {error && (
-            <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-400/30 rounded-lg px-3 py-2">{error}</p>
+            <p className="kc-alert-error">{error}</p>
           )}
         </div>
       )}
 
       {(status.status === 'proposed' || status.status === 'confirmed' || status.status === 'completed') && (
         <div className="space-y-6">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <p className="text-sm text-indigo-200 mb-4">
-              Your part in this cycle:
-            </p>
+          <div className="kc-card p-6">
+            <div className="kc-rule mb-4"><em className="not-italic text-xs font-semibold uppercase tracking-widest text-muted">Your part in this cycle</em><span /></div>
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="bg-emerald-500/10 border border-emerald-400/30 rounded-xl p-4">
-                <p className="text-xs text-emerald-300/80 uppercase tracking-wide">You teach</p>
-                <p className="text-xl font-bold text-white mt-1">{status.myParticipant.teachesSkill.name}</p>
-                <p className="text-sm text-indigo-200 mt-1">
+              <div className="rounded-xl p-4 border border-line bg-maroon/[0.04]">
+                <p className="text-xs text-maroon font-bold uppercase tracking-wide">You teach</p>
+                <p className="kc-display text-2xl font-bold text-ink mt-1">{status.myParticipant.teachesSkill.name}</p>
+                <p className="text-sm text-muted mt-1">
                   to {status.cycle.participants.find((p) => p.learnsSkillId === status.myParticipant.teachesSkillId)?.user?.name ?? 'your partner'}
                 </p>
               </div>
-              <div className="bg-sky-500/10 border border-sky-400/30 rounded-xl p-4">
-                <p className="text-xs text-sky-300/80 uppercase tracking-wide">You learn</p>
-                <p className="text-xl font-bold text-white mt-1">{status.myParticipant.learnsSkill.name}</p>
-                <p className="text-sm text-indigo-200 mt-1">
+              <div className="rounded-xl p-4 border border-line bg-leaf/[0.06]">
+                <p className="text-xs text-leaf font-bold uppercase tracking-wide">You learn</p>
+                <p className="kc-display text-2xl font-bold text-ink mt-1">{status.myParticipant.learnsSkill.name}</p>
+                <p className="text-sm text-muted mt-1">
                   from {status.cycle.participants.find((p) => p.teachesSkillId === status.myParticipant.learnsSkillId)?.user?.name ?? 'your partner'}
                 </p>
               </div>
             </div>
-            <div className="mt-4 flex items-center gap-2 text-sm text-indigo-200">
+            <div className="mt-4 flex items-center gap-2 text-sm text-muted">
               <span
-                className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                  status.cycle.status === 'completed'
-                    ? 'bg-emerald-500/20 text-emerald-300'
-                    : status.cycle.status === 'confirmed'
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : 'bg-amber-500/20 text-amber-300'
+                className={`kc-badge ${
+                  status.cycle.status === 'completed' || status.cycle.status === 'confirmed'
+                    ? 'kc-badge-leaf'
+                    : 'kc-badge-amber'
                 }`}
               >
                 {status.cycle.status === 'completed'
@@ -156,10 +143,7 @@ export default function Dashboard() {
           </div>
 
           <div className="text-center">
-            <Link
-              to={`/match/${status.cycle.id}`}
-              className="inline-block px-8 py-3 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90"
-            >
+            <Link to={`/match/${status.cycle.id}`} className="kc-btn">
               {status.cycle.status === 'proposed' ? 'Review the full cycle' : 'View exchange details'}
             </Link>
           </div>

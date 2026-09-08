@@ -99,20 +99,19 @@ export default function Credits() {
   if (loadError) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
-        <h1 className="text-2xl font-bold text-white">Credits</h1>
-        <p className="text-rose-300">{loadError}</p>
-        <button
-          onClick={load}
-          className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 cursor-pointer"
-        >
-          Retry
-        </button>
+        <h1 className="kc-display text-3xl font-bold text-ink">Credits</h1>
+        <p className="kc-alert-error inline-block">{loadError}</p>
+        <div>
+          <button onClick={load} className="kc-btn">
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!data) {
-    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-indigo-200">Loading credits…</div>;
+    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-muted">Loading credits…</div>;
   }
 
   const { balance, ledger, sessions } = data;
@@ -123,13 +122,13 @@ export default function Credits() {
   const teachOptions = profile?.offered ?? [];
   const redeemOptions = profile?.wanted ?? [];
 
-  const card = 'bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4';
+  const card = 'kc-card p-5 space-y-4';
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Credits</h1>
-        <p className="text-indigo-200 text-sm mt-1">
+        <h1 className="kc-display text-3xl font-bold text-ink">Credits</h1>
+        <p className="text-muted text-sm mt-1">
           No cycle around your skill? Teach now and earn a credit, or spend a credit to
           learn a wanted skill — no waiting for a full exchange cycle.
         </p>
@@ -137,50 +136,44 @@ export default function Credits() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className={card}>
-          <p className="text-indigo-300 text-xs uppercase tracking-wider">Your balance</p>
-          <p className="text-4xl font-bold text-white">{balance}</p>
-          <p className="text-indigo-300/70 text-xs">
+          <p className="text-muted text-xs uppercase tracking-wider">Your balance</p>
+          <p className="kc-display text-5xl font-bold text-maroon">{balance}</p>
+          <p className="text-muted text-xs">
             Earn 1 credit per one-off lesson taught · spend 1 to redeem a lesson
           </p>
         </div>
         <div className={card}>
-          <p className="text-indigo-300 text-xs uppercase tracking-wider">Open sessions</p>
-          <p className="text-4xl font-bold text-white">{openSessions.length}</p>
-          <p className="text-indigo-300/70 text-xs">
+          <p className="text-muted text-xs uppercase tracking-wider">Open sessions</p>
+          <p className="kc-display text-5xl font-bold text-ink">{openSessions.length}</p>
+          <p className="text-muted text-xs">
             {safeSessions.length} session(s) total
           </p>
         </div>
       </div>
 
       {openSessions.length > 0 && (
-        <p className="text-sm text-amber-300 bg-amber-500/10 border border-amber-400/30 rounded-lg px-3 py-2">
+        <p className="kc-alert-warn">
           You have an open session — finish or decline it before starting another.
         </p>
       )}
 
       {(error || notice) && (
-        <p
-          className={`text-sm border rounded-lg px-3 py-2 ${
-            error
-              ? 'text-rose-300 bg-rose-500/10 border-rose-400/30'
-              : 'text-emerald-300 bg-emerald-500/10 border-emerald-400/30'
-          }`}
-        >
+        <p className={error ? 'kc-alert-error' : 'kc-alert-ok'}>
           {error || notice}
         </p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className={card}>
-          <h2 className="text-white font-semibold">Teach now → earn 1 credit</h2>
-          <p className="text-indigo-300/70 text-xs">
+          <h2 className="kc-display text-lg text-ink font-bold">Teach now → earn 1 credit</h2>
+          <p className="text-muted text-xs">
             Pick a skill you offer. We pair you with someone who wants it — you teach,
-            they learn, and you earn a credit once the session is complete.
+            they learn, and you earn a credit once both sides mark the session done.
           </p>
           <select
             value={teachSkill}
             onChange={(e) => setTeachSkill(e.target.value)}
-            className="w-full bg-indigo-900/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-indigo-400/60 cursor-pointer"
+            className="kc-select"
           >
             <option value="">Select a skill you can teach…</option>
             {teachOptions.map((s) => (
@@ -190,29 +183,29 @@ export default function Credits() {
             ))}
           </select>
           {teachOptions.length === 0 && (
-            <p className="text-indigo-300/70 text-xs">
-              You offer no skills yet. <Link to="/skills" className="text-indigo-300 underline">Add some in Edit Skills</Link> first.
+            <p className="text-muted text-xs">
+              You offer no skills yet. <Link to="/skills" className="kc-link">Add some in Edit Skills</Link> first.
             </p>
           )}
           <button
             onClick={teach}
             disabled={busyId !== null || !teachSkill}
-            className="w-full py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+            className="kc-btn kc-btn-leaf w-full"
           >
             {busyId === 'teach' ? 'Working…' : 'Start teaching'}
           </button>
         </div>
 
         <div className={card}>
-          <h2 className="text-white font-semibold">Redeem 1 credit → learn now</h2>
-          <p className="text-indigo-300/70 text-xs">
+          <h2 className="kc-display text-lg text-ink font-bold">Redeem 1 credit → learn now</h2>
+          <p className="text-muted text-xs">
             Pick a skill you want to learn. We pair you with a teacher who offers it —
             your credit is spent when the lesson is requested.
           </p>
           <select
             value={redeemSkill}
             onChange={(e) => setRedeemSkill(e.target.value)}
-            className="w-full bg-indigo-900/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-indigo-400/60 cursor-pointer"
+            className="kc-select"
           >
             <option value="">Select a skill you want to learn…</option>
             {redeemOptions.map((s) => (
@@ -222,17 +215,17 @@ export default function Credits() {
             ))}
           </select>
           {redeemOptions.length === 0 && (
-            <p className="text-indigo-300/70 text-xs">
-              You want to learn nothing yet. <Link to="/skills" className="text-indigo-300 underline">Add some in Edit Skills</Link> first.
+            <p className="text-muted text-xs">
+              You want to learn nothing yet. <Link to="/skills" className="kc-link">Add some in Edit Skills</Link> first.
             </p>
           )}
           {balance < 1 && (
-            <p className="text-indigo-300/70 text-xs">Balance is 0 — teach a lesson first to earn a credit.</p>
+            <p className="text-muted text-xs">Balance is 0 — teach a lesson first to earn a credit.</p>
           )}
           <button
             onClick={redeem}
             disabled={busyId !== null || !redeemSkill || balance < 1}
-            className="w-full py-2.5 rounded-lg bg-gradient-to-r from-sky-500 to-indigo-500 text-white font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+            className="kc-btn w-full"
           >
             {busyId === 'redeem' ? 'Working…' : 'Redeem for a lesson'}
           </button>
@@ -240,9 +233,9 @@ export default function Credits() {
       </div>
 
       <div className={card}>
-        <h2 className="text-white font-semibold">Credit sessions</h2>
+        <h2 className="kc-display text-lg text-ink font-bold">Credit sessions</h2>
         {safeSessions.length === 0 ? (
-          <p className="text-indigo-300/70 text-sm">No credit sessions yet.</p>
+          <p className="text-muted text-sm">No credit sessions yet.</p>
         ) : (
           <ul className="space-y-2">
             {safeSessions.map((s) => {
@@ -252,22 +245,22 @@ export default function Credits() {
               return (
                 <li
                   key={s.id}
-                  className="flex flex-wrap items-center gap-2 text-sm bg-white/5 border border-white/10 rounded-xl px-3 py-2"
+                  className="flex flex-wrap items-center gap-2 text-sm bg-white border border-line rounded-xl px-3 py-2"
                 >
-                  <span className="text-indigo-100">
-                    <b className="text-white">{s.teacher.name}</b> teaches{' '}
-                    <span className="text-emerald-300">{s.skill.name}</span> to{' '}
-                    <b className="text-white">{s.learner.name}</b>
+                  <span className="text-muted">
+                    <b className="text-ink">{s.teacher.name}</b> teaches{' '}
+                    <span className="text-leaf font-medium">{s.skill.name}</span> to{' '}
+                    <b className="text-ink">{s.learner.name}</b>
                   </span>
                   <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                    className={`kc-badge ${
                       s.status === 'completed'
-                        ? 'bg-emerald-500/20 text-emerald-300'
+                        ? 'kc-badge-leaf'
                         : s.status === 'active'
-                          ? 'bg-sky-500/20 text-sky-300'
+                          ? 'kc-badge-sky'
                           : s.status === 'declined'
-                            ? 'bg-rose-500/15 border border-rose-400/30 text-rose-300'
-                            : 'bg-amber-500/20 text-amber-300'
+                            ? 'kc-badge-clay'
+                            : 'kc-badge-amber'
                     }`}
                   >
                     {s.status === 'completed'
@@ -283,26 +276,26 @@ export default function Credits() {
                       <button
                         onClick={() => accept(s.id)}
                         disabled={busyId !== null}
-                        className="px-3 py-1 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+                        className="kc-btn kc-btn-leaf kc-btn-sm"
                       >
                         {busyId === `accept-${s.id}` ? '…' : 'Accept'}
                       </button>
                       <button
                         onClick={() => decline(s.id)}
                         disabled={busyId !== null}
-                        className="px-3 py-1 rounded-lg bg-rose-500/15 border border-rose-400/40 text-rose-300 text-xs font-semibold hover:bg-rose-500/25 disabled:opacity-40 cursor-pointer"
+                        className="kc-btn kc-btn-sm bg-clay border-[#7c2424] hover:bg-[#8a2a2a]"
                       >
                         {busyId === `decline-${s.id}` ? '…' : 'Decline'}
                       </button>
                     </div>
                   )}
                   {initiatorWaiting && (
-                    <span className="ml-auto text-xs text-amber-300/80">
+                    <span className="ml-auto text-xs text-muted">
                       Waiting for {partnerName} to accept…
                     </span>
                   )}
                   {s.status === 'active' && mySideDone(s) && (
-                    <span className="ml-auto text-xs text-amber-300/80">
+                    <span className="ml-auto text-xs text-muted">
                       You marked done — waiting for {partnerName} to confirm…
                     </span>
                   )}
@@ -310,7 +303,7 @@ export default function Credits() {
                     <button
                       onClick={() => complete(s.id)}
                       disabled={busyId !== null}
-                      className="ml-auto px-3 py-1 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white text-xs font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+                      className="kc-btn kc-btn-sm ml-auto"
                     >
                       {busyId === `complete-${s.id}` ? '…' : 'Mark complete'}
                     </button>
@@ -324,14 +317,14 @@ export default function Credits() {
 
       {safeLedger.length > 0 && (
         <div className={card}>
-          <h2 className="text-white font-semibold">Credit history</h2>
+          <h2 className="kc-display text-lg text-ink font-bold">Credit history</h2>
           <ul className="space-y-1 text-sm">
             {safeLedger.map((entry) => (
-              <li key={entry.id} className="flex items-center justify-between text-indigo-200">
+              <li key={entry.id} className="flex items-center justify-between text-muted">
                 <span>
                   {entry.delta > 0 ? 'Earned' : 'Spent'} — {entry.reason}
                 </span>
-                <span className={`font-bold ${entry.delta > 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                <span className={`font-bold ${entry.delta > 0 ? 'text-leaf' : 'text-clay'}`}>
                   {entry.delta > 0 ? `+${entry.delta}` : entry.delta}
                 </span>
               </li>

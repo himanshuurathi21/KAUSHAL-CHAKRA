@@ -103,17 +103,17 @@ export default function Exchanges() {
     setRatings((prev) => ({ ...prev, [`${cycleId}:${rateeId}`]: { ...prev[`${cycleId}:${rateeId}`], ...patch } }));
 
   if (!loaded) {
-    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-indigo-200">Loading…</div>;
+    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-muted">Loading…</div>;
   }
 
   if (loadError) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
-        <h1 className="text-2xl font-bold text-white">My Exchanges</h1>
-        <p className="text-rose-300">{loadError}</p>
+        <h1 className="kc-display text-3xl font-bold text-ink">My Exchanges</h1>
+        <p className="kc-alert-error">{loadError}</p>
         <button
           onClick={() => { setLoaded(false); load(); }}
-          className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 cursor-pointer"
+          className="kc-btn"
         >
           Retry
         </button>
@@ -124,19 +124,19 @@ export default function Exchanges() {
   if (exchanges.length === 0) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
-        <h1 className="text-2xl font-bold text-white">My Exchanges</h1>
-        <p className="text-indigo-200">No confirmed exchanges yet.</p>
-        <Link to="/" className="text-indigo-300 underline text-sm">Back to dashboard</Link>
+        <h1 className="kc-display text-3xl font-bold text-ink">My Exchanges</h1>
+        <p className="text-muted">No confirmed exchanges yet.</p>
+        <Link to="/" className="kc-link text-sm">Back to dashboard</Link>
       </div>
     );
   }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
-      <h1 className="text-2xl font-bold text-white">My Exchanges</h1>
+      <h1 className="kc-display text-3xl font-bold text-ink">My Exchanges</h1>
 
       {actionError && (
-        <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-400/30 rounded-lg px-3 py-2">{actionError}</p>
+        <p className="kc-alert-error">{actionError}</p>
       )}
 
       {exchanges.map((exchange) => {
@@ -148,30 +148,30 @@ export default function Exchanges() {
         const awaitingNames = awaiting.map((a) => (a.userId === user?.id ? 'You' : a.user.name));
 
         return (
-          <div key={exchange.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+          <div key={exchange.id} className="kc-card p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-white font-semibold">Cycle #{exchange.id}</h2>
+              <h2 className="kc-display text-xl text-ink font-bold">Cycle #{exchange.id}</h2>
               <div className="flex items-center gap-2">
                 {done ? (
-                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300">
+                  <span className="kc-badge kc-badge-leaf">
                     ✓ Completed
                   </span>
                 ) : me?.completedAt ? (
-                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300">
+                  <span className="kc-badge kc-badge-amber">
                     ⏳ Waiting for others
                   </span>
                 ) : (
                   <button
                     onClick={() => complete(exchange.id)}
                     disabled={completingId === exchange.id}
-                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer"
+                    className="kc-btn kc-btn-sm"
                   >
                     {completingId === exchange.id ? 'Saving…' : 'Mark session complete'}
                   </button>
                 )}
                 <Link
                   to={`/match/${exchange.id}`}
-                  className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-indigo-200 text-xs hover:text-white"
+                  className="kc-btn kc-btn-ghost kc-btn-sm"
                 >
                   View
                 </Link>
@@ -182,7 +182,7 @@ export default function Exchanges() {
 
             {/* Who is still pending — shown for confirmed cycles too */}
             {!done && awaiting.length > 0 && (
-              <p className="text-indigo-300/70 text-xs">
+              <p className="text-muted text-xs">
                 {awaitingNames.length === 1 && awaitingNames[0] === 'You'
                   ? 'You have not marked your session complete yet.'
                   : `${awaitingNames.join(', ')} ${awaitingNames.length === 1 ? 'has' : 'have'} not finished yet.`}
@@ -194,11 +194,7 @@ export default function Exchanges() {
               {exchange.participants.map((p) => (
                 <span
                   key={p.id}
-                  className={`px-2.5 py-1 rounded-full border font-medium ${
-                    p.completedAt
-                      ? 'bg-emerald-500/15 border-emerald-400/30 text-emerald-300'
-                      : 'bg-white/5 border-white/10 text-indigo-300'
-                  }`}
+                  className={`kc-chip ${p.completedAt ? 'kc-chip-done' : ''}`}
                 >
                   {p.userId === user?.id ? 'You' : p.user.name}: {p.completedAt ? '✓ done' : 'pending'}
                 </span>
@@ -206,15 +202,15 @@ export default function Exchanges() {
             </div>
 
             {/* Contact details stay visible in history */}
-            <div className="bg-emerald-500/10 border border-emerald-400/30 rounded-xl p-4 text-sm">
-              <p className="text-emerald-300 font-semibold mb-2">🔓 Contact details</p>
+            <div className="rounded-xl p-4 text-sm border border-leaf/30 bg-leaf/[0.05]">
+              <p className="text-leaf font-semibold mb-2">Contact details</p>
               <ul className="space-y-1">
                 {others.map((p) => (
-                  <li key={p.id} className="text-indigo-200">
-                    <span className="text-white font-medium">{p.user.name}</span>
+                  <li key={p.id} className="text-muted">
+                    <span className="text-ink font-medium">{p.user.name}</span>
                     {p.user.avgRating != null && (
-                      <span className="ml-1.5 text-amber-300" title={`${p.user.ratingCount} rating(s)`}>
-                        ⭐ {p.user.avgRating.toFixed(1)}
+                      <span className="ml-1.5 text-[#8a5c0e]" title={`${p.user.ratingCount} rating(s)`}>
+                        ★ {p.user.avgRating.toFixed(1)}
                       </span>
                     )}{' '}
                     — {p.user.email}
@@ -225,10 +221,10 @@ export default function Exchanges() {
 
             {/* Ratings — unlocked once the whole cycle is completed */}
             {done && (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-4">
-                <p className="text-white font-semibold text-sm">Rate your exchange partners</p>
+              <div className="kc-card p-4 space-y-4">
+                <p className="text-ink font-semibold text-sm">Rate your exchange partners</p>
                 {rateable.length === 0 && (
-                  <p className="text-indigo-300/70 text-xs">
+                  <p className="text-muted text-xs">
                     No one to rate here — you can only rate partners you directly exchanged with.
                   </p>
                 )}
@@ -237,14 +233,14 @@ export default function Exchanges() {
                   const isRated = rated.has(key);
                   return (
                     <div key={key} className="flex flex-wrap items-center gap-3">
-                      <span className="text-indigo-200 text-sm w-32">
+                      <span className="text-muted text-sm w-32">
                         {p.user.name}
                         {p.user.avgRating != null && (
-                          <span className="ml-1 text-amber-300 text-xs">⭐ {p.user.avgRating.toFixed(1)}</span>
+                          <span className="ml-1 text-[#8a5c0e] text-xs">★ {p.user.avgRating.toFixed(1)}</span>
                         )}
                       </span>
                       {isRated ? (
-                        <span className="text-emerald-300 text-sm">Rated ✓</span>
+                        <span className="text-leaf text-sm">Rated ✓</span>
                       ) : (
                         <>
                           <div className="flex gap-1">
@@ -252,7 +248,7 @@ export default function Exchanges() {
                               <button
                                 key={s}
                                 onClick={() => setRating(exchange.id, p.userId, { score: s })}
-                                className={`text-lg cursor-pointer ${(ratings[key]?.score ?? 0) >= s ? 'text-amber-300' : 'text-indigo-400/40'}`}
+                                className={`text-lg cursor-pointer ${(ratings[key]?.score ?? 0) >= s ? 'text-[#8a5c0e]' : 'text-line'}`}
                               >
                                 ★
                               </button>
@@ -262,12 +258,12 @@ export default function Exchanges() {
                             value={ratings[key]?.comment ?? ''}
                             onChange={(e) => setRating(exchange.id, p.userId, { comment: e.target.value })}
                             placeholder="Optional comment"
-                            className="flex-1 min-w-40 bg-indigo-900/40 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-indigo-400/50 outline-none focus:border-indigo-400/60"
+                            className="kc-input flex-1 min-w-40"
                           />
                           <button
                             onClick={() => submitRating(exchange.id, p.userId)}
                             disabled={!ratings[key]?.score}
-                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white text-xs font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+                            className="kc-btn kc-btn-sm"
                           >
                             Submit
                           </button>
@@ -285,7 +281,7 @@ export default function Exchanges() {
         <div className="text-center">
           <button
             onClick={loadMore}
-            className="px-6 py-2.5 rounded-lg bg-white/5 border border-white/10 text-indigo-200 hover:text-white text-sm cursor-pointer"
+            className="kc-btn kc-btn-ghost text-sm"
           >
             Load older exchanges
           </button>

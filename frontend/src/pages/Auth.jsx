@@ -7,9 +7,12 @@ export default function Auth() {
   const [form, setForm] = useState({ name: '', email: '', password: '', department: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const { user, login, signup } = useAuth();
+  const { user, loading, login, signup } = useAuth();
   const navigate = useNavigate();
 
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-muted">Loading…</div>;
+  }
   if (user) return <Navigate to="/" replace />;
 
   const submit = async (e) => {
@@ -27,26 +30,26 @@ export default function Auth() {
     }
   };
 
-  const input =
-    'w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white placeholder-indigo-300/50 focus:outline-none focus:ring-2 focus:ring-indigo-400/60';
+  const input = 'kc-input';
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-[radial-gradient(ellipse_at_top_left,#312e81_0%,transparent_55%),radial-gradient(ellipse_at_bottom_right,#701a75_0%,transparent_55%)]">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-paper">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-indigo-400 to-fuchsia-500 flex items-center justify-center text-2xl font-black text-white shadow-2xl shadow-indigo-500/40 mb-4">
-            KC
+          <div className="kc-seal w-16 h-16 mx-auto mb-4 text-maroon text-2xl font-black">
+            क
           </div>
-          <h1 className="text-3xl font-bold text-white">
-            Kaushal<span className="text-indigo-300">Chakra</span>
+          <h1 className="kc-display text-4xl font-bold text-ink">
+            KaushalChakra
           </h1>
-          <p className="text-indigo-200 mt-2 text-sm">
-            Trade skills, not money. Get matched in fair multi-person cycles.
+          <p className="text-muted mt-1 text-sm tracking-wide">कौशलचक्र · trade skills, not money</p>
+          <p className="text-muted mt-2 text-sm">
+            Get matched in fair multi-person cycles.
           </p>
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur">
-          <div className="grid grid-cols-2 gap-1 bg-white/5 rounded-lg p-1 mb-6">
+        <div className="kc-card p-6">
+          <div className="grid grid-cols-2 gap-1 bg-parchment rounded-lg p-1 mb-6">
             {['login', 'signup'].map((m) => (
               <button
                 key={m}
@@ -55,7 +58,7 @@ export default function Auth() {
                   setError('');
                 }}
                 className={`py-2 rounded-md text-sm font-semibold capitalize transition-colors cursor-pointer ${
-                  mode === m ? 'bg-indigo-500 text-white' : 'text-indigo-200 hover:text-white'
+                  mode === m ? 'bg-maroon text-white' : 'text-muted hover:text-ink'
                 }`}
               >
                 {m === 'login' ? 'Log in' : 'Sign up'}
@@ -100,21 +103,21 @@ export default function Auth() {
             />
 
             {error && (
-              <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-400/30 rounded-lg px-3 py-2">
+              <p className="kc-alert-error">
                 {error}
               </p>
             )}
 
             <button
               disabled={busy}
-              className="w-full py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
+              className="kc-btn w-full"
             >
               {busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
             </button>
           </form>
         </div>
 
-        <p className="text-center text-indigo-300/70 text-xs mt-6">
+        <p className="text-center text-muted text-xs mt-6">
           Demo accounts: aarav@demo.com · simran@demo.com · rohan@demo.com · priya@demo.com (password: password123)
         </p>
       </div>

@@ -9,18 +9,62 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
+// 7 days, in seconds — matches the JWT expiry.
+const SESSION_MAX_AGE = 7 * 24 * 60 * 60;
+
+function cookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    // Lax blocks cross-site cookie sends on POST/PUT (our mutations) while
+    // keeping top-level navigation working. Combined with an API that has no
+    // cookie-authenticated GETs with side effects, this is our CSRF story:
+    // no CSRF tokens needed because cross-site state changes can't happen.
+    sameSite: 'lax',
+    // Browsers reject Secure cookies over http (local dev), so only require
+    // Secure in production (Render serves https).
+    secure: isProd,
+    path: '/',
+    maxAge: SESSION_MAX_AGE * 1000,
+  };
+}
+
 /** Issue a signed JWT for a user. */
 function signToken(user) {
   return jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
 }
 
+/** Set the httpOnly session cookie (browsers). The token is ALSO returned
+ * in the JSON body so API clients / scripts can keep using Bearer auth. */
+function setSessionCookie(res, user) {
+  const token = signToken(user);
+  res.cookie('kc_session', token, cookieOptions());
+  return token;
+}
+
+/** Clear the session cookie (logout). Safe to call when already logged out. */
+function clearSessionCookie(res) {
+  res.clearCookie('kc_session', { ...cookieOptions(), maxAge: undefined });
+}
+
 /**
- * Express middleware: verifies the `Authorization: Bearer <token>` header
- * and attaches `req.userId`. Rejects the request with 401 otherwise.
+ * Resolve the caller's token: httpOnly cookie first (browsers), then the
+ * Authorization header (scripts, smoke tests, viva curl demos).
+ * Pure — unit-tested.
+ */
+function resolveToken(req) {
+  if (req.cookies?.kc_session) return req.cookies.kc_session;
+  const header = req.headers?.authorization || '';
+  return header.startsWith('Bearer ') ? header.slice(7) : null;
+}
+
+/**
+ * Express middleware: verifies the session cookie or the
+ * `Authorization: Bearer <token>` header and attaches `req.userId`.
+ * Rejects the request with 401 otherwise.
  */
 async function requireAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = resolveToken(req);
   if (!token) return res.status(401).json({ error: 'Authentication required' });
 
   let payload;
@@ -56,4 +100,4 @@ async function requireAdmin(req, res, next) {
   }
 }
 
-module.exports = { signToken, requireAuth, requireAdmin };
+module.exports = { signToken, setSessionCookie, clearSessionCookie, resolveToken, requireAuth, requireAdmin };

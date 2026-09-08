@@ -143,16 +143,18 @@ export default function MatchReview() {
   if (loadError) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
-        <p className="text-rose-300">{loadError}</p>
-        <Link to="/" className="inline-block text-indigo-300 underline text-sm">
-          Back to dashboard
-        </Link>
+        <p className="kc-alert-error inline-block">{loadError}</p>
+        <div>
+          <Link to="/" className="kc-link text-sm">
+            Back to dashboard
+          </Link>
+        </div>
       </div>
     );
   }
 
   if (!cycle) {
-    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-indigo-200">Loading cycle…</div>;
+    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-muted">Loading cycle…</div>;
   }
 
   const my = cycle.participants.find((p) => p.userId === user?.id);
@@ -165,8 +167,8 @@ export default function MatchReview() {
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Exchange cycle #{cycle.id}</h1>
-          <p className="text-indigo-200 text-sm mt-1">
+          <h1 className="kc-display text-3xl font-bold text-ink">Exchange cycle #{cycle.id}</h1>
+          <p className="text-muted text-sm mt-1">
             {done
               ? 'Everyone finished their side — this exchange is complete. Thanks for participating!'
               : confirmed
@@ -175,10 +177,8 @@ export default function MatchReview() {
           </p>
         </div>
         <span
-          className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
-            done || confirmed || allAccepted
-              ? 'bg-emerald-500/20 text-emerald-300'
-              : 'bg-amber-500/20 text-amber-300'
+          className={`kc-badge ${
+            done || confirmed || allAccepted ? 'kc-badge-leaf' : 'kc-badge-amber'
           }`}
         >
           {done ? '✓ Completed' : confirmed ? '✓ Confirmed' : allAccepted ? '✓ All accepted' : '⏳ Proposed'}
@@ -188,27 +188,27 @@ export default function MatchReview() {
       <CycleChain participants={cycle.participants} myUserId={user?.id} />
 
       {/* Acceptance status per participant */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-        <h2 className="text-white font-semibold mb-3">Acceptance status</h2>
+      <div className="kc-card p-5">
+        <h2 className="kc-display text-lg text-ink font-bold mb-3">Acceptance status</h2>
         <ul className="space-y-2">
           {cycle.participants.map((p) => (
             <li key={p.id} className="flex items-center justify-between text-sm">
-              <span className="text-indigo-200">
-                {p.userId === user?.id ? <b className="text-amber-300">You</b> : p.user.name}
+              <span className="text-muted">
+                {p.userId === user?.id ? <b className="text-maroon">You</b> : <span className="text-ink font-medium">{p.user.name}</span>}
                 {p.userId !== user?.id && p.user.avgRating != null && (
-                  <span className="ml-1.5 text-amber-300 text-xs" title={`${p.user.ratingCount} rating(s)`}>
-                    ⭐ {p.user.avgRating.toFixed(1)}
+                  <span className="ml-1.5 text-[#8a5c0e] text-xs" title={`${p.user.ratingCount} rating(s)`}>
+                    ★ {p.user.avgRating.toFixed(1)}
                   </span>
                 )}
-                <span className="text-indigo-300/70"> — teaches {p.teachesSkill.name}</span>
+                <span className="text-muted"> — teaches {p.teachesSkill.name}</span>
               </span>
               <span
-                className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                className={`kc-badge ${
                   p.accepted === true
-                    ? 'bg-emerald-500/20 text-emerald-300'
+                    ? 'kc-badge-leaf'
                     : p.accepted === false
-                      ? 'bg-rose-500/20 text-rose-300'
-                      : 'bg-white/10 text-indigo-300'
+                      ? 'kc-badge-clay'
+                      : 'kc-badge-neutral'
                 }`}
               >
                 {p.accepted === true ? 'Accepted' : p.accepted === false ? 'Rejected' : 'Pending'}
@@ -220,17 +220,17 @@ export default function MatchReview() {
 
       {/* Contact info — only revealed after confirmation */}
       {(confirmed || done) && (
-        <div className="bg-emerald-500/10 border border-emerald-400/30 rounded-2xl p-5">
-          <h2 className="text-white font-semibold mb-3">🔓 Contact details unlocked</h2>
+        <div className="kc-card p-5 border-leaf/40 bg-leaf/[0.05]">
+          <h2 className="kc-display text-lg text-ink font-bold mb-3">Contact details unlocked</h2>
           <ul className="space-y-2 text-sm">
             {cycle.participants
               .filter((p) => p.userId !== user?.id)
               .map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="text-white font-medium">{p.user.name}</span>
-                  <span className="text-indigo-300">{p.user.email}</span>
-                  <span className="text-indigo-300/70">({p.user.department ?? '—'})</span>
-                  <span className="text-indigo-300/60">teaches {p.teachesSkill.name}</span>
+                  <span className="text-ink font-medium">{p.user.name}</span>
+                  <span className="text-muted">{p.user.email}</span>
+                  <span className="text-muted/70">({p.user.department ?? '—'})</span>
+                  <span className="text-muted">teaches {p.teachesSkill.name}</span>
                 </li>
               ))}
           </ul>
@@ -238,7 +238,7 @@ export default function MatchReview() {
       )}
 
       {error && (
-        <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-400/30 rounded-lg px-3 py-2">{error}</p>
+        <p className="kc-alert-error">{error}</p>
       )}
 
       {proposed && (
@@ -246,14 +246,14 @@ export default function MatchReview() {
           <button
             onClick={() => act('accept')}
             disabled={busy || my?.accepted === true}
-            className="flex-1 py-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer"
+            className="kc-btn kc-btn-leaf flex-1"
           >
             {my?.accepted === true ? 'Accepted ✓ (awaiting others)' : 'Accept exchange'}
           </button>
           <button
             onClick={() => act('reject')}
             disabled={busy}
-            className="flex-1 py-3 rounded-lg bg-rose-500/15 border border-rose-400/40 text-rose-300 font-semibold hover:bg-rose-500/25 disabled:opacity-50 cursor-pointer"
+            className="kc-btn flex-1 bg-clay border-[#7c2424] hover:bg-[#8a2a2a]"
           >
             Reject
           </button>
@@ -262,10 +262,7 @@ export default function MatchReview() {
 
       {(confirmed || done) && (
         <div className="text-center">
-          <Link
-            to="/exchanges"
-            className="inline-block px-8 py-3 rounded-lg bg-white/5 border border-white/10 text-indigo-200 hover:text-white"
-          >
+          <Link to="/exchanges" className="kc-btn kc-btn-ghost">
             Go to My Exchanges
           </Link>
         </div>
@@ -273,14 +270,14 @@ export default function MatchReview() {
 
       {/* Exchange chat — available once confirmed */}
       {(cycle.status === 'confirmed' || cycle.status === 'completed') && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
-          <h2 className="text-white font-semibold">💬 Exchange chat</h2>
+        <div className="kc-card p-5 space-y-3">
+          <h2 className="kc-display text-lg text-ink font-bold">Exchange chat</h2>
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1" ref={chatBoxRef}>
             {chatLoading && messages.length === 0 && (
-              <p className="text-indigo-300/70 text-sm">Loading messages…</p>
+              <p className="text-muted text-sm">Loading messages…</p>
             )}
             {!chatLoading && messages.length === 0 && (
-              <p className="text-indigo-300/70 text-sm">No messages yet. Say hi to your partners!</p>
+              <p className="text-muted text-sm">No messages yet. Say hi to your partners!</p>
             )}
             {messages.map((m) => {
               const mine = m.senderId === user?.id;
@@ -289,13 +286,13 @@ export default function MatchReview() {
                   <div
                     className={`max-w-[75%] px-3 py-2 rounded-xl text-sm ${
                       mine
-                        ? 'bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white rounded-br-sm'
-                        : 'bg-white/10 text-indigo-100 rounded-bl-sm'
+                        ? 'bg-maroon text-[#fff8ee] rounded-br-sm'
+                        : 'bg-parchment text-ink rounded-bl-sm border border-line'
                     }`}
                   >
-                    {!mine && <span className="block text-[10px] text-indigo-300 mb-0.5">{m.sender.name}</span>}
+                    {!mine && <span className="block text-[10px] text-muted mb-0.5">{m.sender.name}</span>}
                     <span>{m.content}</span>
-                    <span className="block text-[9px] text-indigo-300/60 mt-0.5">
+                    <span className={`block text-[9px mt-0.5 ${mine ? 'text-[#fff8ee]/70' : 'text-muted/70'}`}>
                       {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -304,12 +301,12 @@ export default function MatchReview() {
             })}
           </div>
           {chatDead && (
-            <p className="text-sm text-amber-300 bg-amber-500/10 border border-amber-400/30 rounded-lg px-3 py-2">
+            <p className="kc-alert-warn">
               Chat is unavailable right now — your messages are safe. Refresh the page to reconnect.
             </p>
           )}
           {chatError && (
-            <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-400/30 rounded-lg px-3 py-2">{chatError}</p>
+            <p className="kc-alert-error">{chatError}</p>
           )}
           <div className="flex gap-2">
             <input
@@ -323,17 +320,17 @@ export default function MatchReview() {
               }}
               maxLength={1000}
               placeholder="Type a message…"
-              className="flex-1 bg-indigo-900/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-indigo-400/50 outline-none focus:border-indigo-400/60"
+              className="kc-input flex-1"
             />
             <div className="flex flex-col items-end gap-1">
               <button
                 onClick={send}
                 disabled={chatBusy || !draft.trim()}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+                className="kc-btn kc-btn-sm"
               >
                 Send
               </button>
-              <span className="text-[10px] text-indigo-400/50">{draft.length}/1000</span>
+              <span className="text-[10px] text-muted">{draft.length}/1000</span>
             </div>
           </div>
         </div>

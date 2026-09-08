@@ -12,10 +12,10 @@ import {
 import api from '../api/client';
 
 const SIZE_COLORS = {
-  2: '#38bdf8',
-  3: '#818cf8',
-  4: '#c084fc',
-  5: '#f472b6',
+  2: '#1f5b85',
+  3: '#7c2a23',
+  4: '#d98716',
+  5: '#2e7d4f',
 };
 
 export default function Admin() {
@@ -32,13 +32,13 @@ export default function Admin() {
   }, []);
 
   if (!loaded) {
-    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-indigo-200">Loading stats…</div>;
+    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-muted">Loading stats…</div>;
   }
 
   if (error) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center">
-        <p className="text-rose-300">{error}</p>
+        <p className="kc-alert-error inline-block">{error}</p>
       </div>
     );
   }
@@ -54,23 +54,23 @@ export default function Admin() {
   }));
 
   const compareData = [
-    { name: 'Cyclic engine', users: safeComparison.matchedByCyclicEngine ?? 0, fill: '#818cf8' },
-    { name: 'Direct swap only', users: safeComparison.matchedByDirectSwapOnly ?? 0, fill: '#38bdf8' },
+    { name: 'Cyclic engine', users: safeComparison.matchedByCyclicEngine ?? 0, fill: '#7c2a23' },
+    { name: 'Direct swap only', users: safeComparison.matchedByDirectSwapOnly ?? 0, fill: '#d98716' },
   ];
 
   const Card = ({ label, value, sub }) => (
-    <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-      <p className="text-indigo-300 text-xs uppercase tracking-wider">{label}</p>
-      <p className="text-3xl font-bold text-white mt-1">{value}</p>
-      {sub && <p className="text-indigo-300/70 text-xs mt-1">{sub}</p>}
+    <div className="kc-card p-5">
+      <p className="text-muted text-xs uppercase tracking-wider">{label}</p>
+      <p className="kc-display text-3xl font-bold text-ink mt-1">{value}</p>
+      {sub && <p className="text-muted text-xs mt-1">{sub}</p>}
     </div>
   );
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Admin analytics</h1>
-        <p className="text-indigo-200 text-sm mt-1">
+        <h1 className="kc-display text-3xl font-bold text-ink">Admin analytics</h1>
+        <p className="text-muted text-sm mt-1">
           How the cyclic matching engine is performing.
         </p>
       </div>
@@ -87,17 +87,17 @@ export default function Admin() {
       </div>
 
       {/* Cycle-size breakdown */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
-        <h2 className="text-white font-semibold">Confirmed exchanges by cycle size</h2>
+      <div className="kc-card p-5 space-y-4">
+        <h2 className="kc-display text-lg text-ink font-bold">Confirmed exchanges by cycle size</h2>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={sizeData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff15" />
-            <XAxis dataKey="name" stroke="#a5b4fc" fontSize={12} tickLine={false} />
-            <YAxis stroke="#a5b4fc" fontSize={12} tickLine={false} allowDecimals={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#2b211815" />
+            <XAxis dataKey="name" stroke="#77664e" fontSize={12} tickLine={false} />
+            <YAxis stroke="#77664e" fontSize={12} tickLine={false} allowDecimals={false} />
             <Tooltip
-              cursor={{ fill: '#ffffff10' }}
-              contentStyle={{ background: '#1e1b4b', border: '1px solid #ffffff20', borderRadius: 12 }}
-              labelStyle={{ color: '#e0e7ff' }}
+              cursor={{ fill: '#2b211808' }}
+              contentStyle={{ background: '#fffdf7', border: '1px solid #e0d0b2', borderRadius: 12 }}
+              labelStyle={{ color: '#2b2118' }}
             />
             <Bar dataKey="count" name="exchanges" radius={[6, 6, 0, 0]}>
               {sizeData.map((d) => (
@@ -109,22 +109,22 @@ export default function Admin() {
       </div>
 
       {/* Cyclic vs direct-swap-only comparison */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
-        <h2 className="text-white font-semibold">Users matched: cyclic vs direct-swap-only</h2>
+      <div className="kc-card p-5 space-y-4">
+        <h2 className="kc-display text-lg text-ink font-bold">Users matched: cyclic vs direct-swap-only</h2>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={compareData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff15" />
-            <XAxis dataKey="name" stroke="#a5b4fc" fontSize={12} tickLine={false} />
-            <YAxis stroke="#a5b4fc" fontSize={12} tickLine={false} allowDecimals={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#2b211815" />
+            <XAxis dataKey="name" stroke="#77664e" fontSize={12} tickLine={false} />
+            <YAxis stroke="#77664e" fontSize={12} tickLine={false} allowDecimals={false} />
             <Tooltip
-              cursor={{ fill: '#ffffff10' }}
-              contentStyle={{ background: '#1e1b4b', border: '1px solid #ffffff20', borderRadius: 12 }}
-              labelStyle={{ color: '#e0e7ff' }}
+              cursor={{ fill: '#2b211808' }}
+              contentStyle={{ background: '#fffdf7', border: '1px solid #e0d0b2', borderRadius: 12 }}
+              labelStyle={{ color: '#2b2118' }}
             />
             <Bar dataKey="users" name="matched users" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
-        <p className="text-indigo-300/70 text-xs">
+        <p className="text-muted text-xs">
           The cyclic engine unlocks skill exchanges that would never happen through simple 1-to-1
           matching — currently {safeComparison.pctWouldNotMatchWithoutCycles ?? '—'}% of matched users.
         </p>

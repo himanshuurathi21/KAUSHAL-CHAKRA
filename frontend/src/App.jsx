@@ -10,14 +10,20 @@ import Admin from './pages/Admin';
 import Credits from './pages/Credits';
 import Verify from './pages/Verify';
 
+function LoadingGate() {
+  return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-indigo-200">Loading…</div>;
+}
+
 function Protected({ children }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingGate />;
   if (!user) return <Navigate to="/auth" replace />;
   return children;
 }
 
 function AdminOnly({ children }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingGate />;
   if (!user) return <Navigate to="/auth" replace />;
   if (!user.isAdmin) return <Navigate to="/" replace />;
   return children;
@@ -27,7 +33,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <div className="min-h-screen text-white bg-[#0f172a] bg-[radial-gradient(ellipse_at_top_left,#312e81_30%,transparent_60%),radial-gradient(ellipse_at_bottom_right,#701a75_25%,transparent_55%)]">
+        <div className="min-h-screen bg-paper text-ink">
           <Navbar />
           <main className="min-h-[calc(100vh-60px)]">
             <Routes>

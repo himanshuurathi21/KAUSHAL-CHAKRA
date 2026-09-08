@@ -14,10 +14,10 @@ export default function SkillPicker({ skills = [], selected = new Set(), onToggl
             key={skill.id}
             type="button"
             onClick={() => onToggle(skill.id)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer ${
+            className={`kc-chip transition-all cursor-pointer ${
               isOn
-                ? 'bg-indigo-500 border-indigo-400 text-white shadow-lg shadow-indigo-500/30 scale-105'
-                : 'bg-white/5 border-white/10 text-indigo-100 hover:border-indigo-400/60'
+                ? 'bg-maroon border-maroon-deep text-white shadow-md shadow-maroon/25'
+                : 'hover:border-maroon/50'
             }`}
           >
             {isOn ? '✓ ' : ''}

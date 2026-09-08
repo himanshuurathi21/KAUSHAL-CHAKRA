@@ -146,6 +146,23 @@ Prisma schema, seed/smoke scripts, plus live runs (tests, smoke, build).
 
 ---
 
+### Round 3 — auth security + Warm Indian craft reskin
+- Cookie auth: httpOnly `kc_session` (SameSite=Lax, Secure in prod) for
+  browsers, Bearer kept for scripts/smoke (dual-auth via `resolveToken`,
+  unit-tested). `POST /auth/logout` clears the cookie. Frontend drops
+  localStorage tokens; AuthContext restores via `/auth/me` with a loading
+  gate (no more reload bounce). CSRF story: Lax cookies + no
+  cookie-authenticated side-effect GETs + strict CORS allowlist.
+- Helmet headers (incl. CSP), cookie-parser, global 600/15min API limiter.
+  Brute-force limiter moved to POST login/signup only — session calls
+  (`/me`) no longer burn the budget (found via a 429 self-inflicted in QA).
+- Reskin: cream paper, maroon + marigold, ink serif display
+  (`kc-display`), chakra seal/divider motifs, कौशलचक्र wordmark. Shared
+  `kc-*` component classes; 13 files skinned, zero logic changes. Favicon
+  added (inline SVG seal).
+- Browser QA 15/15 on the new build (auth, match, live confirm, chat,
+  quiz, certificate + admin approval, credits, mobile menu, no overflow).
+
 ## 3. Verification evidence
 
 - **Unit tests: 41/41 pass** (`npm test` in `backend/`).

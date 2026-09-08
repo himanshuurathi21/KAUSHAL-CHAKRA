@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../lib/prisma');
-const { signToken } = require('../middleware/auth');
+const { setSessionCookie, clearSessionCookie } = require('../middleware/auth');
 
 /** Normalize + validate signup/login credentials. Returns {email, password} or {error}. */
 function checkCredentials(email, password) {
@@ -43,7 +43,9 @@ async function signup(req, res, next) {
       },
     });
 
-    res.status(201).json({ token: signToken(user), user: publicUser(user) });
+    // Cookie for browsers; token in body for scripts (dual-auth).
+    const token = setSessionCookie(res, user);
+    res.status(201).json({ token, user: publicUser(user) });
   } catch (err) {
     next(err);
   }
@@ -63,10 +65,18 @@ async function login(req, res, next) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    res.json({ token: signToken(user), user: publicUser(user) });
+    // Cookie for browsers; token in body for scripts (dual-auth).
+    const token = setSessionCookie(res, user);
+    res.json({ token, user: publicUser(user) });
   } catch (err) {
     next(err);
   }
+}
+
+/** POST /api/auth/logout — clear the session cookie. Always succeeds. */
+async function logout(req, res) {
+  clearSessionCookie(res);
+  res.json({ ok: true });
 }
 
 /** GET /api/auth/me — current user (JWT protected). */
@@ -100,4 +110,4 @@ function publicUser(user) {
   };
 }
 
-module.exports = { signup, login, me, publicUser };
+module.exports = { signup, login, logout, me, publicUser };
