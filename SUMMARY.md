@@ -1,9 +1,10 @@
 # KaushalChakra — Audit + Build Summary
 
-Everything below was produced in one session: a full production audit of the
-repo, followed by a 5-phase build (bug fixes, chat, skill verification,
-credit hardening, UI/UX pass). Verified with 39 unit tests, an extended
-smoke suite, and a race-condition proof script — all green.
+Full session log: production audit → 5-phase hardening build → skill
+verification → security + reskin → browser QA → GitHub push → Render
+deploy + live debugging. Current state: everything below is committed,
+pushed to `master`, and deployed at
+`https://kaushalchakra-app.onrender.com`.
 
 ---
 
@@ -34,8 +35,7 @@ Prisma schema, seed/smoke scripts, plus live runs (tests, smoke, build).
    concurrent redeems drove balance negative
    (`creditController.js` → balance check moved inside a locked txn).
 5. Credit `+1` minted on single-sided complete; concurrent completes
-   double-minted → now atomic `updateMany({status:'active'})`, only the
-   winner mints (`creditController.js`).
+   double-minted → atomic flip, then two-sided completion (Round 2).
 6. Self-rating bypass: `rateeId:"1"` (string) slipped past the `===` check
    → ids normalized before comparison (`ratingController.js`).
 7. Second reject on the same user-pair threw P2002 → cycle stuck
@@ -43,7 +43,7 @@ Prisma schema, seed/smoke scripts, plus live runs (tests, smoke, build).
 8. Dashboard white-screened when the counterpart heuristic missed
    (`?.user.name` doesn't guard `.user`) (`Dashboard.jsx`).
 
-### High-value fixes (all fixed unless noted)
+### High-value fixes (all fixed)
 
 - Chat: proposed page never learned the cycle got confirmed until reload;
   first load landed on oldest messages; double-Enter double-posted; no
@@ -57,11 +57,8 @@ Prisma schema, seed/smoke scripts, plus live runs (tests, smoke, build).
 - Notifications weren't deep-linked (backend sent text only).
 - `me`/`getProfile`/`getMyStatus` crashed (500) on deleted users;
   duplicate-rating race returned 500 instead of 409.
-- Rating adjacency was skill-equality based, not chain position — FIXED
-  (see "Round 2" below).
-- Credit farm design gap: teach-side `+1` costs the learner nothing, so
-  colluding users can print credits — FIXED with two-sided completion
-  (see "Round 2" below).
+- Rating adjacency was skill-equality based → edge-based (Round 2).
+- Credit farm gap (free `+1`) → two-sided completion (Round 2).
 
 ---
 
@@ -117,7 +114,6 @@ Prisma schema, seed/smoke scripts, plus live runs (tests, smoke, build).
 - `redeem`/`teachNow`: checks + writes inside one advisory-locked
   transaction (no double-spend, no double-booking); partner lookup
   filtered/ordered in the DB.
-- `completeSession`: atomic flip, single mint.
 - Credits page: dropdowns filtered to offered/wanted skills, redeem
   disabled at 0 balance with explanation, open-session banner, waiting
   hints, per-row busy states, load error + retry, null-safe data.
@@ -135,16 +131,12 @@ Prisma schema, seed/smoke scripts, plus live runs (tests, smoke, build).
 
 ### Round 2 — remaining gaps closed
 - Rating adjacency is now edge-based: the ratee must be the participant
-  who teaches what you learn (or learns what you teach), so coincidental
-  skill sharing no longer grants rating rights. Changed in
+  who teaches what you learn (or learns what you teach). Changed in
   `ratingService.js`, mirrored in `Exchanges.jsx`, +2 unit tests.
 - Two-sided credit completion: `CreditSession` gained `teacherDoneAt` /
   `learnerDoneAt` (migration `credit_two_sided_complete`); the teacher's
-  `+1` mints only after BOTH sides mark done, via one atomic flip — kills
-  single-sided self-minting while keeping the demo flow (each side clicks
-  once). UI shows "waiting for partner" states; smoke covers both sides.
-
----
+  `+1` mints only after BOTH sides mark done, via one atomic flip.
+  UI shows "waiting for partner" states; smoke covers both sides.
 
 ### Round 3 — auth security + Warm Indian craft reskin
 - Cookie auth: httpOnly `kc_session` (SameSite=Lax, Secure in prod) for
@@ -152,34 +144,55 @@ Prisma schema, seed/smoke scripts, plus live runs (tests, smoke, build).
   unit-tested). `POST /auth/logout` clears the cookie. Frontend drops
   localStorage tokens; AuthContext restores via `/auth/me` with a loading
   gate (no more reload bounce). CSRF story: Lax cookies + no
-  cookie-authenticated side-effect GETs + strict CORS allowlist.
+  cookie-authenticated side-effect GETs + strict CORS.
 - Helmet headers (incl. CSP), cookie-parser, global 600/15min API limiter.
-  Brute-force limiter moved to POST login/signup only — session calls
-  (`/me`) no longer burn the budget (found via a 429 self-inflicted in QA).
+  Brute-force limiter scoped to POST login/signup only — session calls
+  (`/me`) no longer burn the budget (found via a self-inflicted 429
+  during QA).
 - Reskin: cream paper, maroon + marigold, ink serif display
   (`kc-display`), chakra seal/divider motifs, कौशलचक्र wordmark. Shared
-  `kc-*` component classes; 13 files skinned, zero logic changes. Favicon
-  added (inline SVG seal).
-- Browser QA 15/15 on the new build (auth, match, live confirm, chat,
-  quiz, certificate + admin approval, credits, mobile menu, no overflow).
+  `kc-*` component classes; 13 files skinned, zero logic changes. Inline
+  SVG favicon + SVG bell (no emoji icons left).
 
-## 3. Verification evidence
-
-- **Unit tests: 41/41 pass** (`npm test` in `backend/`).
-- **Smoke: ALL CHECKS PASSED** (`npm run smoke` on a fresh seed) —
-  includes 7 new verification checks (quiz load/grading, certificate
-  submit, admin queue, approval, 403 for non-admin) and the previously
-  fixed partner-accept credit flow.
-- **Race proof** (`race-check.mjs`, throwaway script): concurrent
-  double-complete → exactly one wins, balance +1 only; concurrent
-  double-redeem on balance 1 → exactly one wins, balance 0 (never
-  negative).
-- **Frontend:** `npm run build` succeeds; dev server returns HTTP 200.
-- **Quiz-pass path** verified live against the API (6/6 → approved).
+### Round 4 — deploy debugging (Render)
+- Symptom: CSS served as `application/json` + JS 500 on the live URL.
+  Diagnosis from code: the only JSON source for non-API paths was the
+  central error handler, which masked every failure as 500 — so a
+  runtime file/rules problem presented as MIME errors.
+- Fix 1: error handler honors `err.status` (sendFile misses → 404);
+  missing `dist/` logs a loud boot WARNING instead of failing silently.
+- Fix 2 (the live bug, from deploy logs): CORS allowlist rejected the
+  Render origin. Replaced with same-origin-aware CORS (Origin matching
+  request Host needs no env var) + quiet deny (no ACAO header, no 500)
+  + `trust proxy` for correct client IPs. Verified locally:
+  same-origin → 401 JSON with ACAO headers; foreign → denied, no crash.
+- Deploy config verified beforehand: `migrate deploy` clean (5
+  migrations), `npm ci` both sides in sync, seed idempotent, no new env
+  vars or dependencies, `/api/health` present.
 
 ---
 
-## 4. Run it
+## 3. Verification evidence
+
+- **Unit tests: 45/45 pass** (`npm test` in `backend/`) — 29 original +
+  10 verification + 2 rating + 4 auth (`resolveToken`).
+- **Smoke: ALL CHECKS PASSED** on fresh seeds, repeatedly — incl.
+  two-sided credit flow, 7 verification checks, partner-accept flow.
+- **Race proof** (throwaway script): concurrent double-complete →
+  exactly one wins, balance +1 only; concurrent double-redeem on
+  balance 1 → exactly one wins, balance 0 (never negative).
+- **Browser QA 15/15** (Playwright + real Chrome, script in temp dir):
+  login, match accept, live confirm, chat send, quiz 6/6, certificate +
+  admin approval, admin charts, credits teach, mobile menu, zero
+  horizontal overflow. Screenshots in `Temp\kc-qa\shots\`.
+- **Production shape**: Express-served `dist/` returns 200 for `/` and
+  SPA routes; `/api/health` healthy; unauthenticated API → 401.
+- Deploy logs confirm: 5 migrations applied, 37 skills + 14 users
+  seeded, `Serving built frontend from frontend/dist`, service live.
+
+---
+
+## 4. Run it locally
 
 ```powershell
 # terminal 1 — database (portable Postgres, no admin needed)
@@ -191,6 +204,11 @@ cd D:\Projects\Minor\frontend; npm run dev       # :5173
 ```
 
 - Fresh demo data: `SEED_FRESH=1 npm run seed` (from `backend/`).
+- Live deployment: `https://kaushalchakra-app.onrender.com`
+  (free tier sleeps after 15 min idle — first load takes ~1 min to wake;
+  free PostgreSQL expires after 30 days → move to Neon for permanent).
+- Redeploy on Render: service → Manual Deploy → Deploy latest commit
+  (use "Clear build cache & deploy" if assets ever look stale).
 - Demo logins (password `password123`): `aarav@demo.com` (3-way cycle),
   `priya@demo.com` (admin), `ishaan@demo.com` (credits), `vihaan@demo.com`.
 - Suggested viva flow: Aarav accepts 3-way cycle → Simran/Rohan accept →
@@ -198,20 +216,26 @@ cd D:\Projects\Minor\frontend; npm run dev       # :5173
   `/admin` → Ishaan does `/credits` → Verify page: pass a Python quiz,
   submit a certificate, approve it as Priya.
 
+### Demo accounts (all password `password123`)
+
+- 3-way cycle: `aarav@demo.com` (Python→Photography), `simran@demo.com`
+  (Photography→Guitar), `rohan@demo.com` (Guitar→Python)
+- 4-way cycle: `priya@demo.com` (**admin**, Excel→Spanish),
+  `neha@demo.com`, `vikram@demo.com`, `ananya@demo.com`
+- Direct swap: `kunal@demo.com` ↔ `meera@demo.com`
+- Credits/waiting: `ishaan@demo.com`, `vihaan@demo.com`, `riya@demo.com`,
+  `sara@demo.com`, `dev@demo.com`
+
 ---
 
-## 5. Changed files (26 modified, 5 new)
+## 5. Commits (all on `master`, pushed)
 
-New: `verifyController.js`, `quizBank.js`, `verificationService.js`,
-`tests/verification.test.mjs`, `frontend/src/pages/Verify.jsx`, plus
-migration `20260908183017_skill_verification`.
-Modified — backend: `auth.js`, `authController.js`, `profileController.js`,
-`matchController.js`, `ratingController.js`, `creditController.js`,
-`chatController.js`, `verifyController.js`, `matchRoutes.js`,
-`featureRoutes.js`, `matchingService.js`, `creditService.js`,
-`notificationService.js`, `schema.prisma`, `seed.js`, `smoke.js`.
-Modified — frontend: `App.jsx`, `client.js`, `Navbar.jsx`,
-`CycleChain.jsx`, `Dashboard.jsx`, `SetupSkills.jsx`, `MatchReview.jsx`,
-`Exchanges.jsx`, `Credits.jsx`, `Admin.jsx`, `Auth.jsx`. Plus `README.md`.
+- `eb61150` Audit + hardening: fix 8 blockers, live chat, skill
+  verification, atomic credits
+- `49d9e99` Add favicon, quiz test ids
+- `d8940d2` Cookie auth + Warm Indian craft reskin
+- `b5ee9e3` Serve frontend honestly (truthful errors, dist warning)
+- `7bc9a82` CORS: allow same-origin production traffic, deny quietly
+- `viva-fallback` branch + tag frozen pre-redesign as rollback
 
-Nothing is committed — commit when ready.
+Repo: `https://github.com/himanshuurathi21/KAUSHAL-CHAKRA`
