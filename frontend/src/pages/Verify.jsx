@@ -269,7 +269,7 @@ export default function Verify() {
             {busy ? 'Loading…' : `Start ${quizSkillName || ''} quiz`}
           </button>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4" data-testid="quiz-questions">
             {questions.map((q, i) => (
               <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
                 <p className="text-sm text-white font-medium">
@@ -279,6 +279,7 @@ export default function Verify() {
                   {q.options.map((opt, oi) => (
                     <button
                       key={oi}
+                      data-testid={`quiz-q${i}-opt${oi}`}
                       onClick={() => setAnswers((a) => ({ ...a, [i]: oi }))}
                       className={`text-left text-sm px-3 py-2 rounded-lg border cursor-pointer ${
                         answers[i] === oi
