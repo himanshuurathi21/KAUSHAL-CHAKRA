@@ -11,6 +11,7 @@ const matchRoutes = require('./routes/matchRoutes');
 const featureRoutes = require('./routes/featureRoutes');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Security headers (incl. CSP + no X-Powered-By). The built React app is a
 // single JS/CSS bundle with no inline scripts, so default CSP is compatible.
@@ -18,21 +19,27 @@ app.use(helmet());
 app.use(cookieParser());
 
 // CORS: the browser app authenticates with cookies, so cross-origin calls
-// (Vite dev on :5173 -> API on :4000) need credentials + an allowlisted
-// origin. Same-origin production traffic is unaffected. In production, set
-// FRONTEND_URL to the deployed web origin.
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+// (Vite dev on :5173 -> API on :4000) need credentials + an allowed origin.
+// Same-origin production traffic (page + API on one Render URL) is allowed
+// by comparing Origin to the request Host — no env var needed on Render.
+// Disallowed origins simply get no ACAO header (browser blocks, no 500s).
+// Extra origins (previews, custom domains): FRONTEND_URL=a.com,b.com
+const extraOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
 app.use(
-  cors({
-    origin: (origin, cb) => {
-      // No Origin header (curl, smoke tests, server-to-server) -> allow.
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error('CORS: origin not allowed'));
-    },
-    credentials: true,
+  cors((req, callback) => {
+    const origin = req.headers.origin;
+    if (!origin) return callback(null, { origin: true, credentials: true });
+    if (extraOrigins.includes(origin)) return callback(null, { origin: true, credentials: true });
+    try {
+      const host = (req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+      if (new URL(origin).host === host) return callback(null, { origin: true, credentials: true });
+    } catch {
+      // fall through to deny
+    }
+    return callback(null, { origin: false });
   })
 );
 app.use(express.json());
