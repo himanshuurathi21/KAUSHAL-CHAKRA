@@ -4,7 +4,11 @@ const {
   computeBalance,
   canRedeem,
   findAvailablePartner,
+  invitedPartnerId,
+  canTransition,
+  refundEntryFor,
   hasActiveCycle,
+  hasOpenCreditSession,
   hasWaitedLongEnough,
 } = require('../services/creditService');
 
@@ -19,7 +23,9 @@ const sessionInclude = {
 /** GET /api/credits — my balance, ledger entries and credit sessions. */
 async function getMyCredits(req, res, next) {
   try {
-    const [ledger, sessions] = await Promise.all([
+    // Balance must be summed over the FULL ledger — the returned list is
+    // only the 50 most recent entries for display.
+    const [ledger, sessions, balanceAgg] = await Promise.all([
       prisma.credit.findMany({
         where: { userId: req.userId },
         orderBy: { createdAt: 'desc' },
@@ -30,8 +36,12 @@ async function getMyCredits(req, res, next) {
         include: sessionInclude,
         orderBy: { createdAt: 'desc' },
       }),
+      prisma.credit.aggregate({
+        where: { userId: req.userId },
+        _sum: { delta: true },
+      }),
     ]);
-    res.json({ balance: computeBalance(ledger), ledger, sessions });
+    res.json({ balance: balanceAgg._sum.delta ?? 0, ledger, sessions });
   } catch (err) {
     next(err);
   }
@@ -52,6 +62,9 @@ async function teachNow(req, res, next) {
     }
     if (await hasActiveCycle(req.userId)) {
       return res.status(400).json({ error: 'You are already in an active cycle — no credit session needed' });
+    }
+    if (await hasOpenCreditSession(req.userId)) {
+      return res.status(400).json({ error: 'You already have an open credit session — resolve it before starting another' });
     }
     if (!hasWaitedLongEnough(user, MIN_WAIT_DAYS)) {
       return res.status(400).json({ error: `Credit teaching unlocks after ${MIN_WAIT_DAYS} day(s) without a match` });
@@ -90,6 +103,9 @@ async function redeem(req, res, next) {
     if (await hasActiveCycle(req.userId)) {
       return res.status(400).json({ error: 'You are already in an active cycle — no need to redeem' });
     }
+    if (await hasOpenCreditSession(req.userId)) {
+      return res.status(400).json({ error: 'You already have an open credit session — resolve it before redeeming another' });
+    }
 
     const balance = await currentBalance(req.userId);
     if (!canRedeem(balance)) {
@@ -121,6 +137,54 @@ async function redeem(req, res, next) {
   }
 }
 
+/** POST /api/credits/sessions/:id/accept — the auto-assigned partner accepts the session. */
+async function acceptSession(req, res, next) {
+  try {
+    const found = await findRespondableSession(req.params.id, req.userId);
+    if (found.error) return res.status(found.error).json({ error: found.message });
+    const session = found.session;
+
+    const updated = await prisma.creditSession.update({
+      where: { id: session.id },
+      data: { status: 'active' },
+      include: sessionInclude,
+    });
+
+    await notifyInitiator(session, `${responderName(session)} accepted your credit session on ${session.skill.name}.`);
+
+    res.json({ session: updated });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** POST /api/credits/sessions/:id/decline — the auto-assigned partner declines. */
+async function declineSession(req, res, next) {
+  try {
+    const found = await findRespondableSession(req.params.id, req.userId);
+    if (found.error) return res.status(found.error).json({ error: found.message });
+    const session = found.session;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.creditSession.update({
+        where: { id: session.id },
+        data: { status: 'declined' },
+      });
+      // A redeem reserves -1 up front; give the credit back when the
+      // session never happens. Teacher-initiated sessions have no
+      // up-front reservation, so there is nothing to refund.
+      const refund = refundEntryFor(session);
+      if (refund) await tx.credit.create({ data: refund });
+    });
+
+    await notifyInitiator(session, `${responderName(session)} declined your credit session on ${session.skill.name}.`);
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 /** POST /api/credits/sessions/:id/complete — finish a one-off session, settle the ledger. */
 async function completeSession(req, res, next) {
   try {
@@ -134,8 +198,8 @@ async function completeSession(req, res, next) {
     if (session.teacherId !== req.userId && session.learnerId !== req.userId) {
       return res.status(403).json({ error: 'You are not part of this session' });
     }
-    if (session.status === 'completed') {
-      return res.status(400).json({ error: 'This session is already completed' });
+    if (session.status !== 'active') {
+      return res.status(400).json({ error: 'Only active sessions can be completed' });
     }
 
     await prisma.$transaction(async (tx) => {
@@ -162,10 +226,43 @@ async function completeSession(req, res, next) {
   }
 }
 
+/**
+ * Load a session the caller is allowed to respond to (accept/decline).
+ * Only the auto-assigned partner (the one who did NOT initiate the
+ * session) may respond, and only while the session is still `proposed`.
+ */
+async function findRespondableSession(rawId, userId) {
+  const sessionId = Number(rawId);
+  if (!Number.isInteger(sessionId)) return { error: 400, message: 'Invalid session id' };
+  const session = await prisma.creditSession.findUnique({
+    where: { id: sessionId },
+    include: sessionInclude,
+  });
+  if (!session) return { error: 404, message: 'Session not found' };
+  if (!canTransition(session, 'active') && !canTransition(session, 'declined')) {
+    return { error: 400, message: `This session is already ${session.status}` };
+  }
+  if (invitedPartnerId(session) !== userId) {
+    return { error: 403, message: 'Only the invited partner can respond to this session' };
+  }
+  return { session };
+}
+
+/** Name of the partner who just accepted/declined the session. */
+function responderName(session) {
+  return session.createdBy === 'teacher' ? session.learner.name : session.teacher.name;
+}
+
+/** Notify the initiator (the user who created the session) about a response. */
+async function notifyInitiator(session, content) {
+  const initiatorId = session.createdBy === 'teacher' ? session.teacherId : session.learnerId;
+  await notify(initiatorId, 'credit_session', content);
+}
+
 /** Sum of the user's ledger movements. */
 async function currentBalance(userId) {
   const entries = await prisma.credit.findMany({ where: { userId }, select: { delta: true } });
   return computeBalance(entries);
 }
 
-module.exports = { getMyCredits, teachNow, redeem, completeSession };
+module.exports = { getMyCredits, teachNow, redeem, acceptSession, declineSession, completeSession };

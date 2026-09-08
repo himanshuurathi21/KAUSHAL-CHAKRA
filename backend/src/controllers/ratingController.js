@@ -1,4 +1,5 @@
 const prisma = require('../lib/prisma');
+const { canRateEachOther } = require('../services/ratingService');
 
 /** POST /api/ratings — rate a participant on a completed exchange. */
 async function createRating(req, res, next) {
@@ -28,10 +29,13 @@ async function createRating(req, res, next) {
       return res.status(400).json({ error: 'Ratings are only allowed after the exchange is completed' });
     }
 
-    const isRater = cycle.participants.some((p) => p.userId === raterId);
-    const isRatee = cycle.participants.some((p) => p.userId === Number(rateeId));
-    if (!isRater || !isRatee) {
+    const raterParticipant = cycle.participants.find((p) => p.userId === raterId);
+    const rateeParticipant = cycle.participants.find((p) => p.userId === Number(rateeId));
+    if (!raterParticipant || !rateeParticipant) {
       return res.status(403).json({ error: 'Both users must be participants in this cycle' });
+    }
+    if (!canRateEachOther(cycle.participants, raterId, Number(rateeId))) {
+      return res.status(403).json({ error: 'You can only rate someone you directly taught or learned from in this exchange' });
     }
 
     const existing = await prisma.rating.findUnique({

@@ -30,6 +30,8 @@ app.use('/api', profileRoutes);
 app.use('/api', matchRoutes);
 app.use('/api', featureRoutes);
 
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
+
 // In production the built React app is served by Express itself, so a single
 // web service deploys the whole product (no separate static host needed).
 const path = require('path');
@@ -48,7 +50,8 @@ if (fs.existsSync(distPath)) {
 // Central error handler — keeps error responses consistent
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: 'Internal server error', detail: err.message });
+  const isDev = process.env.NODE_ENV !== 'production';
+  res.status(500).json({ error: 'Internal server error', ...(isDev && { detail: err.message }) });
 });
 
 const PORT = process.env.PORT || 4000;

@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const {
   runMatch,
   getMyStatus,

@@ -68,8 +68,14 @@ export default function CycleChain({ participants, myUserId }) {
 
 /** Order participants as [me -> who I teach -> who they teach -> ...] */
 function buildChain(participants, myUserId) {
+  // A skill can be learned by more than one participant (dense graphs), so
+  // index by skill -> candidates instead of skill -> single participant.
   const byLearns = new Map();
-  for (const p of participants) byLearns.set(p.learnsSkillId, p);
+  for (const p of participants) {
+    const list = byLearns.get(p.learnsSkillId) ?? [];
+    list.push(p);
+    byLearns.set(p.learnsSkillId, list);
+  }
 
   let start = participants.find((p) => p.userId === myUserId) ?? participants[0];
   const chain = [];
@@ -77,7 +83,14 @@ function buildChain(participants, myUserId) {
   while (start && !seen.has(start.id)) {
     seen.add(start.id);
     chain.push(start);
-    start = byLearns.get(start.teachesSkillId);
+    const candidates = (byLearns.get(start.teachesSkillId) ?? []).filter((p) => !seen.has(p.id));
+    start = candidates[0] ?? null;
+  }
+
+  // Ambiguous duplicate-skill cycles may not form a single closed loop —
+  // append anyone we did not reach so nobody is left out of the view.
+  for (const p of participants) {
+    if (!seen.has(p.id)) chain.push(p);
   }
   return chain;
 }

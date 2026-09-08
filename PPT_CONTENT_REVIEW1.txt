@@ -1,0 +1,160 @@
+
+ INTRODUCTION
+
+• KaushalChakra is a web application that matches users into fair MULTI-PERSON
+  skill exchange CYCLES instead of monetary transactions.
+
+• How it works — a closed loop where everyone gives and receives:
+    You teach Python to Simran
+    Simran teaches Photography to Rohan
+    Rohan teaches Guitar to you
+
+• The cyclic matching engine can satisfy skill needs that would NEVER match
+  as simple 1-to-1 swaps — this is the key idea that separates the product
+  from a regular skill-swap app.
+
+• Example real-world use: students in a college can exchange Python,
+  Photography, Guitar, Spanish etc. without spending money.
+
+• Core features:
+    - Cyclic matching (2–5 person cycles)
+    - In-app chat, ratings & reviews, notifications
+    - Credit fallback (teach now, earn a credit / redeem to learn now)
+    - Admin analytics dashboard
+
+• Tech stack: React + Vite + Tailwind (frontend)
+               Express + Prisma + PostgreSQL (backend)
+
+
+--------------------------------------------------------------------------------
+ PROBLEM STATEMENT
+
+• In today's economy, learning new skills is expensive — coaching classes,
+  tutors and online courses cost money that many students cannot afford.
+
+• Direct skill swaps fail often: if "A wants Photography" and "B wants
+  Python", a swap only works when A also has what B wants — which rarely
+  happens.
+
+• A person who wants to learn Piano and can teach Physics finds NO match in
+  a 1-to-1 system, even though many people want Physics lessons.
+
+• Existing bartering apps are limited to 1-to-1 trades, leaving most users
+  unmatched and the skill exchange inefficient.
+
+• SOLUTION: KaushalChakra generalizes the exchange into multi-person cycles —
+  A teaches B, B teaches C, C teaches A — so everyone's need gets satisfied
+  even when no direct swap exists.
+
+• Impact & significance: makes skill learning accessible to students with
+  zero monetary cost, builds a self-sustaining knowledge-sharing community
+  within a college campus.
+
+
+--------------------------------------------------------------------------------
+PROJECT OBJECTIVES
+
+• O1: Design a cyclic matching engine (2–5 person cycles) that satisfies
+      every user's skill needs using a bounded-depth DFS algorithm.
+• O2: Build a full-stack web platform (React + Express + PostgreSQL) where
+      users can register, list skills they teach/want, and get matched.
+• O3: Implement a complete exchange lifecycle — proposed → confirmed →
+      completed — with accept/reject, session completion tracking.
+• O4: Add communication & trust features — in-app chat, 1–5 star ratings
+      with reviews, and notifications.
+• O5: Provide a credit fallback system: teach now and earn a credit, or
+      redeem a credit to learn now instead of waiting for a cycle.
+• O6: Provide an admin analytics dashboard proving the value of cyclic
+      matching over direct swaps.
+
+
+--------------------------------------------------------------------------------
+ PROJECT SCOPE
+
+IN SCOPE:
+• Fixed skill taxonomy (36 skills) — no free-text skills, to keep matching precise
+• Cycles of 2–5 participants with proficiency levels (BEGINNER/INTERMEDIATE/EXPERT)
+• One active cycle per user at a time
+• Chat scoped to confirmed exchanges (5-second polling)
+• Ratings only on completed cycles, between directly-connected partners
+• Credit ledger with teach/redeem/refund
+• Admin-only analytics page
+
+OUT OF SCOPE (future work):
+• WebSockets for real-time chat (currently polling)
+• Free-text / custom skills
+• Mobile application
+• Video-call integration for lessons
+• Production-grade security hardening (CORS restriction, HTTPS-only tokens)
+
+CONSTRAINTS:
+• PostgreSQL 14+ database, Node.js 18+ runtime
+• No free-text skills (fixed taxonomy)
+• One active cycle per user at a time
+• Chat messages limited to 1000 characters
+
+
+--------------------------------------------------------------------------------
+APPLICATIONS
+
+• College campuses — students exchange academic skills (Python, SQL, Excel,
+  Mathematics Tutoring) with hobby skills (Guitar, Photography, Cooking).
+• Communities & NGOs — skill-sharing among members at zero cost.
+• Corporate onboarding — employees barter internal training skills.
+• Senior citizens clubs — elders teach languages/chess, learn digital skills.
+• Hostel & residential societies — neighbors exchange cooking, fitness,
+  yoga and meditation sessions.
+• Demo scenarios built in: 3-person cycle, 4-person cycle, direct swap,
+  credit fallback flow, and admin analytics — all with 14 seeded demo users.
+
+
+--------------------------------------------------------------------------------
+ SOFTWARE REQUIREMENTS
+
+DEVELOPMENT TOOLS:
+• Node.js >= 18 (runtime)
+• Express 4 (REST API framework)
+• Prisma ORM 6 + PostgreSQL 14 (database)
+• React 18 + Vite 6 + Tailwind CSS 4 (frontend)
+• JSON Web Tokens (jsonwebtoken) + bcryptjs (authentication & security)
+• express-rate-limit (brute-force protection)
+• Recharts (admin analytics charts)
+• Vitest (unit testing — 29 test cases)
+• GitHub (version control) + GitHub Actions (CI)
+• Docker / Docker Compose (optional containerized deployment)
+• Render (free cloud deployment)
+• VS Code (editor)
+
+
+--------------------------------------------------------------------------------
+HARDWARE REQUIREMENTS
+
+MINIMUM (DEVELOPMENT MACHINE):
+• Processor: Dual-core 2.0 GHz or higher
+• RAM: 4 GB (8 GB recommended)
+• Storage: 2 GB free disk space
+• OS: Windows 10/11, Linux (Ubuntu 20.04+), or macOS
+• Internet connection for npm packages & GitHub
+
+SERVER / DEPLOYMENT (free tier used):
+• Render free web service (0.1 CPU, 512 MB RAM) — sufficient for demo
+• PostgreSQL free tier database
+• Docker Desktop (optional, for local containerized setup)
+
+NO special hardware required — runs on any standard laptop/PC.
+
+
+SLIDE 13 — REFERENCES
+
+• React Documentation — https://react.dev
+• Vite — https://vitejs.dev
+• Express — https://expressjs.com
+• Prisma ORM — https://www.prisma.io
+• PostgreSQL — https://www.postgresql.org
+• Tailwind CSS — https://tailwindcss.com
+• Recharts — https://recharts.org
+• GitHub Actions — https://docs.github.com/actions
+• Render — https://render.com/docs
+• ACM Code of Ethics and Professional Conduct — https://www.acm.org/code-of-ethics
+• IEEE Code of Ethics — https://www.ieee.org/about/corporate/governance/p7-8.html
+

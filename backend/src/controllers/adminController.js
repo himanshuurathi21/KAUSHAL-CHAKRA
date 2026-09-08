@@ -21,7 +21,9 @@ async function getStats(req, res, next) {
       }),
     ]);
 
-    // Users with a profile who are not in an active (proposed/confirmed) cycle
+    // Users with a profile who are not in any active cycle — "waiting".
+    // Only proposed/confirmed participants count as busy: completed cycles
+    // free their users again (they may be re-matched or back in the pool).
     const [withSkills, activeRows] = await Promise.all([
       prisma.user.count({ where: { OR: [{ offered: { some: {} } }, { wanted: { some: {} } }] } }),
       prisma.matchCycleParticipant.findMany({
@@ -29,7 +31,8 @@ async function getStats(req, res, next) {
         select: { userId: true },
       }),
     ]);
-    const waitingUsers = withSkills - new Set(activeRows.map((r) => r.userId)).size;
+    const busyUserIds = new Set(activeRows.map((r) => r.userId));
+    const waitingUsers = Math.max(0, withSkills - busyUserIds.size);
 
     // Cycle-size breakdown
     const sizeCounts = { 2: 0, 3: 0, 4: 0, 5: 0 };

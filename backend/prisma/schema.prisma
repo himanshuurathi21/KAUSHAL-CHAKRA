@@ -190,7 +190,7 @@ model CreditSession {
   learnerId   Int
   skillId     Int
   createdBy   String // teacher | learner
-  status      String   @default("proposed") // proposed | completed
+  status      String   @default("proposed") // proposed -> active -> completed | declined
   createdAt   DateTime @default(now())
   completedAt DateTime?
 

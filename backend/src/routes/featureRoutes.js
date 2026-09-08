@@ -3,7 +3,7 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { createRating, getUserRatings } = require('../controllers/ratingController');
 const { getMine, markRead, markAllRead } = require('../controllers/notificationController');
 const { getStats } = require('../controllers/adminController');
-const { getMyCredits, teachNow, redeem, completeSession } = require('../controllers/creditController');
+const { getMyCredits, teachNow, redeem, acceptSession, declineSession, completeSession } = require('../controllers/creditController');
 
 const router = Router();
 
@@ -23,6 +23,8 @@ router.get('/admin/stats', requireAuth, requireAdmin, getStats);
 router.get('/credits', requireAuth, getMyCredits);
 router.post('/credits/teach', requireAuth, teachNow);
 router.post('/credits/redeem', requireAuth, redeem);
+router.post('/credits/sessions/:id/accept', requireAuth, acceptSession);
+router.post('/credits/sessions/:id/decline', requireAuth, declineSession);
 router.post('/credits/sessions/:id/complete', requireAuth, completeSession);
 
 module.exports = router;

@@ -51,15 +51,27 @@ async function updateSkills(req, res, next) {
       });
     const offeredNorm = norm(offered);
     const wantedNorm = norm(wanted);
-    const allIds = [...offeredNorm, ...wantedNorm].map((s) => s.id);
-    const allLevels = [...offeredNorm, ...wantedNorm].map((s) => s.level).filter(Boolean);
+
+    // Dedupe within each list (by skill id) — last entry wins
+    const dedupe = (list) => {
+      const map = new Map();
+      for (const item of list) map.set(item.id, item);
+      return Array.from(map.values());
+    };
+    const offeredDeduped = dedupe(offeredNorm);
+    const wantedDeduped = dedupe(wantedNorm);
+
+    // A skill may appear in both offered and wanted (e.g. teach it at a
+    // higher level while still learning more) — validate each unique id once.
+    const allIds = [...new Set([...offeredDeduped, ...wantedDeduped].map((s) => s.id))];
+    const allLevels = [...offeredDeduped, ...wantedDeduped].map((s) => s.level).filter(Boolean);
     if (allLevels.some((l) => !LEVELS.includes(l))) {
       return res.status(400).json({ error: 'level must be BEGINNER, INTERMEDIATE or EXPERT' });
     }
 
-    // Validate every id against the taxonomy
+    // Validate every unique id against the taxonomy
     const validCount = await prisma.skill.count({ where: { id: { in: allIds } } });
-    if (validCount !== new Set(allIds).size) {
+    if (validCount !== allIds.length) {
       return res.status(400).json({ error: 'One or more skill ids are not in the taxonomy' });
     }
 
@@ -68,10 +80,10 @@ async function updateSkills(req, res, next) {
     await prisma.$transaction([
       prisma.userOfferedSkill.deleteMany({ where: { userId } }),
       prisma.userWantedSkill.deleteMany({ where: { userId } }),
-      ...offeredNorm.map(({ id, level }) =>
+      ...offeredDeduped.map(({ id, level }) =>
         prisma.userOfferedSkill.create({ data: { userId, skillId: id, level: level || 'INTERMEDIATE' } })
       ),
-      ...wantedNorm.map(({ id, level }) =>
+      ...wantedDeduped.map(({ id, level }) =>
         prisma.userWantedSkill.create({ data: { userId, skillId: id, level: level || 'BEGINNER' } })
       ),
     ]);

@@ -169,7 +169,7 @@ async function rejectCycle(req, res, next) {
     if (!Number.isInteger(cycleId)) return res.status(400).json({ error: 'Invalid cycle id' });
     const cycle = await prisma.matchCycle.findUnique({
       where: { id: cycleId },
-      include: { participants: { include: { user: true }, orderBy: { id: 'asc' } } },
+      include: { participants: { include: { user: true } } },
     });
     if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
     if (cycle.status !== 'proposed') {
@@ -178,17 +178,20 @@ async function rejectCycle(req, res, next) {
     const my = cycle.participants.find((p) => p.userId === req.userId);
     if (!my) return res.status(403).json({ error: 'You are not part of this cycle' });
 
-    // Block the edge that fed the rejector: they wanted a skill that
-    // the NEXT user in the cycle teaches. That edge is now poisoned.
-    // Participants are ordered by id so "next in cycle" is deterministic
-    // and matches the order the engine built the cycle in.
-    const order = cycle.participants;
-    const idx = order.findIndex((p) => p.userId === req.userId);
-    const nextUser = order[(idx + 1) % order.length];
+    // Block the edge the rejector learns from: find the participant who teaches
+    // the skill the rejector wanted (my.learnsSkillId). That participant is
+    // the "next user" in the cycle order, regardless of DB row order.
+    let teacher = cycle.participants.find((p) => p.teachesSkillId === my.learnsSkillId);
+    if (!teacher) {
+      // Fallback (should not happen in a valid cycle): use the first other participant
+      const fallback = cycle.participants.find((p) => p.userId !== req.userId);
+      if (!fallback) return res.status(400).json({ error: 'Cannot determine edge to block' });
+      teacher = fallback;
+    }
 
     await prisma.$transaction([
       prisma.blockedEdge.create({
-        data: { fromUserId: req.userId, toUserId: nextUser.userId },
+        data: { fromUserId: req.userId, toUserId: teacher.userId },
       }),
       prisma.matchCycle.update({
         where: { id: cycleId },
@@ -224,7 +227,7 @@ async function getExchanges(req, res, next) {
       take: limit,
       skip: offset,
     });
-    res.json({ exchanges: await Promise.all(cycles.map((c) => enrichCycle(c))) });
+    res.json({ exchanges: await enrichCycles(cycles) });
   } catch (err) {
     next(err);
   }
@@ -362,7 +365,7 @@ async function getCycleFor(cycleId) {
 }
 
 /**
- * Enrich a cycle for the client:
+ * Enrich cycles for the client (BATCHED — one query set for all cycles):
  *  - When confirmed, reveal contact info (emails) between participants;
  *    while proposed, emails stay hidden.
  *  - Attach each participant's proficiency levels for the skill they teach
@@ -370,46 +373,64 @@ async function getCycleFor(cycleId) {
  *  - Flatten the user's average rating + rating count (from the relation
  *    aggregates in cycleInclude) into avgRating / ratingCount.
  */
-async function enrichCycle(cycle) {
-  const offeredLevels = await prisma.userOfferedSkill.findMany({
-    where: { OR: cycle.participants.map((p) => ({ userId: p.userId, skillId: p.teachesSkillId })) },
-  });
-  const wantedLevels = await prisma.userWantedSkill.findMany({
-    where: { OR: cycle.participants.map((p) => ({ userId: p.userId, skillId: p.learnsSkillId })) },
-  });
+async function enrichCycles(cycles) {
+  if (cycles.length === 0) return [];
+
+  const participantRows = cycles.flatMap((c) => c.participants);
+  const hasRows = participantRows.length > 0;
+
+  const [offeredLevels, wantedLevels, aggRows] = await Promise.all([
+    hasRows
+      ? prisma.userOfferedSkill.findMany({
+          where: { OR: participantRows.map((p) => ({ userId: p.userId, skillId: p.teachesSkillId })) },
+        })
+      : [],
+    hasRows
+      ? prisma.userWantedSkill.findMany({
+          where: { OR: participantRows.map((p) => ({ userId: p.userId, skillId: p.learnsSkillId })) },
+        })
+      : [],
+    hasRows
+      ? prisma.rating.groupBy({
+          by: ['rateeId'],
+          where: { rateeId: { in: participantRows.map((p) => p.userId) } },
+          _avg: { score: true },
+          _count: { _all: true },
+        })
+      : [],
+  ]);
+
   const levelOf = (rows, userId, skillId) =>
     rows.find((r) => r.userId === userId && r.skillId === skillId)?.level ?? null;
-
-  // Average rating per participant (grouped aggregation — relation
-  // aggregates can't be nested inside a select)
-  const aggRows = await prisma.rating.groupBy({
-    by: ['rateeId'],
-    where: { rateeId: { in: cycle.participants.map((p) => p.userId) } },
-    _avg: { score: true },
-    _count: { _all: true },
-  });
   const aggByUser = new Map(
     aggRows.map((r) => [r.rateeId, { avgRating: r._avg.score, ratingCount: r._count._all }])
   );
 
-  const participants = cycle.participants.map((p) => {
-    const agg = aggByUser.get(p.userId);
-    return {
-      ...p,
-      teachesLevel: levelOf(offeredLevels, p.userId, p.teachesSkillId),
-      learnsLevel: levelOf(wantedLevels, p.userId, p.learnsSkillId),
-      user: {
-        id: p.user.id,
-        name: p.user.name,
-        email: ['confirmed', 'completed'].includes(cycle.status) ? p.user.email : null,
-        department: p.user.department,
-        avgRating: agg?.avgRating ?? null,
-        ratingCount: agg?.ratingCount ?? 0,
-      },
-    };
+  return cycles.map((cycle) => {
+    const participants = cycle.participants.map((p) => {
+      const agg = aggByUser.get(p.userId);
+      return {
+        ...p,
+        teachesLevel: levelOf(offeredLevels, p.userId, p.teachesSkillId),
+        learnsLevel: levelOf(wantedLevels, p.userId, p.learnsSkillId),
+        user: {
+          id: p.user.id,
+          name: p.user.name,
+          email: ['confirmed', 'completed'].includes(cycle.status) ? p.user.email : null,
+          department: p.user.department,
+          avgRating: agg?.avgRating ?? null,
+          ratingCount: agg?.ratingCount ?? 0,
+        },
+      };
+    });
+    return { ...cycle, participants };
   });
+}
 
-  return { ...cycle, participants };
+/** Enrich a single cycle (batched helper, keeps call sites unchanged). */
+async function enrichCycle(cycle) {
+  const enriched = await enrichCycles([cycle]);
+  return enriched[0];
 }
 
 module.exports = {

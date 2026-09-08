@@ -40,7 +40,7 @@ cp .env.example .env          # adjust credentials if needed
 npm install
 npx prisma migrate dev        # applies migrations
 npm run seed                  # 14 demo users + skill taxonomy
-npm test                      # 19 unit tests (pure matching engine + credits)
+npm test                      # 29 unit tests (pure matching engine + credits + ratings)
 npm run dev                   # http://localhost:4000
 
 # 3. Frontend (new terminal)

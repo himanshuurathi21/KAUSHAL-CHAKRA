@@ -7,6 +7,11 @@ import { useAuth } from '../context/AuthContext';
 const STARS = [1, 2, 3, 4, 5];
 const RATED_KEY = 'kc_rated';
 
+// Matches the backend rule (ratingService.canRateEachOther): you may only
+// rate someone you directly taught or learned from in this exchange.
+const canRate = (a, b) =>
+  a.learnsSkillId === b.teachesSkillId || a.teachesSkillId === b.learnsSkillId;
+
 function loadRated() {
   try {
     return new Set(JSON.parse(localStorage.getItem(RATED_KEY)) || []);
@@ -91,7 +96,9 @@ export default function Exchanges() {
         const done = exchange.status === 'completed';
         const me = exchange.participants.find((p) => p.userId === user.id);
         const others = exchange.participants.filter((p) => p.userId !== user.id);
+        const rateable = others.filter((p) => canRate(me, p));
         const awaiting = exchange.participants.filter((p) => !p.completedAt);
+        const awaitingNames = awaiting.map((a) => (a.userId === user.id ? 'You' : a.user.name));
 
         return (
           <div key={exchange.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
@@ -163,7 +170,12 @@ export default function Exchanges() {
             {done && (
               <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-4">
                 <p className="text-white font-semibold text-sm">Rate your exchange partners</p>
-                {others.map((p) => {
+                {rateable.length === 0 && (
+                  <p className="text-indigo-300/70 text-xs">
+                    No one to rate here — you can only rate partners you directly exchanged with.
+                  </p>
+                )}
+                {rateable.map((p) => {
                   const key = `${exchange.id}:${p.userId}`;
                   const isRated = rated.has(key);
                   return (
@@ -209,8 +221,9 @@ export default function Exchanges() {
                 })}
                 {awaiting.length > 0 && (
                   <p className="text-indigo-300/70 text-xs">
-                    {awaiting.map((a) => (a.userId === user.id ? 'You' : a.user.name)).join(', ')}{' '}
-                    {awaiting.length === 1 ? 'has' : 'have'} not finished yet.
+                    {awaitingNames.length === 1 && awaitingNames[0] === 'You'
+                      ? 'You have not finished yet.'
+                      : `${awaitingNames.join(', ')} ${awaitingNames.length === 1 ? 'has' : 'have'} not finished yet.`}
                   </p>
                 )}
               </div>

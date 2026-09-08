@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * Phase 3 — Credit fallback page.
  * Unmatched users can teach now and earn a credit, or redeem a credit to
- * be taught a wanted skill, instead of waiting for a cycle to form.
+ * be taught a wanted skill, instead of waiting for a full exchange cycle.
  */
 export default function Credits() {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [skills, setSkills] = useState([]);
   const [teachSkill, setTeachSkill] = useState('');
@@ -54,11 +56,29 @@ export default function Credits() {
       setRedeemSkill('');
     });
 
+  const accept = (sessionId) =>
+    act(async () => {
+      await api.post(`/credits/sessions/${sessionId}/accept`);
+      setNotice('Session accepted — you can now complete it.');
+    });
+
+  const decline = (sessionId) =>
+    act(async () => {
+      await api.post(`/credits/sessions/${sessionId}/decline`);
+      setNotice('Session declined — credit refunded if you redeemed.');
+    });
+
   const complete = (sessionId) =>
     act(async () => {
       await api.post(`/credits/sessions/${sessionId}/complete`);
       setNotice('Session completed — the teacher earned a credit.');
     });
+
+  const isResponder = (s) =>
+    (s.createdBy === 'teacher' && s.learnerId === user.id) ||
+    (s.createdBy === 'learner' && s.teacherId === user.id);
+
+  const canComplete = (s) => s.status === 'active' && (s.teacherId === user.id || s.learnerId === user.id);
 
   if (!data) {
     return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-indigo-200">Loading credits…</div>;
@@ -183,12 +203,40 @@ export default function Credits() {
                     className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                       s.status === 'completed'
                         ? 'bg-emerald-500/20 text-emerald-300'
-                        : 'bg-amber-500/20 text-amber-300'
+                        : s.status === 'active'
+                          ? 'bg-sky-500/20 text-sky-300'
+                          : s.status === 'declined'
+                            ? 'bg-rose-500/15 border border-rose-400/30 text-rose-300'
+                            : 'bg-amber-500/20 text-amber-300'
                     }`}
                   >
-                    {s.status === 'completed' ? 'Completed' : 'Proposed'}
+                    {s.status === 'completed'
+                      ? 'Completed'
+                      : s.status === 'active'
+                        ? 'Active'
+                        : s.status === 'declined'
+                          ? 'Declined'
+                          : 'Proposed'}
                   </span>
-                  {s.status === 'proposed' && (
+                  {s.status === 'proposed' && isResponder(s) && (
+                    <div className="ml-auto flex gap-2">
+                      <button
+                        onClick={() => accept(s.id)}
+                        disabled={busy}
+                        className="px-3 py-1 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-semibold hover:opacity-90 disabled:opacity-40 cursor-pointer"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        onClick={() => decline(s.id)}
+                        disabled={busy}
+                        className="px-3 py-1 rounded-lg bg-rose-500/15 border border-rose-400/40 text-rose-300 text-xs font-semibold hover:bg-rose-500/25 disabled:opacity-40 cursor-pointer"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  )}
+                  {canComplete(s) && (
                     <button
                       onClick={() => complete(s.id)}
                       disabled={busy}

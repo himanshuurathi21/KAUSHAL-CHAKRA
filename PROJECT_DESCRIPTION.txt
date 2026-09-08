@@ -1,0 +1,503 @@
+================================================================================
+PROJECT DESCRIPTION — KAUSHALCHAKRA
+Skill Bartering Platform ("Trade skills, not money")
+================================================================================
+This document is a complete, self-contained description of the project. It is
+written so that any AI coding tool or developer can understand the full
+architecture, tech stack, data model, algorithms, API surface and workflows
+WITHOUT reading the source code. All file paths are relative to the repository
+root.
+
+--------------------------------------------------------------------------------
+1. PROJECT OVERVIEW
+--------------------------------------------------------------------------------
+KaushalChakra is a web application that matches users into fair MULTI-PERSON
+skill exchange CYCLES. Instead of money, users trade skills:
+
+    You teach Python to Simran
+    Simran teaches Photography to Rohan
+    Rohan teaches Guitar to you
+
+...a closed loop where everyone gives and receives. This is the key idea that
+separates the product from a simple 1-to-1 skill swap: the cyclic matching
+engine can satisfy skill needs that would NEVER match as direct swaps.
+
+Phases implemented:
+  Phase 1a : Session completion (mark your side done; cycle completes when all do)
+  Phase 1b : Ratings & reviews (1-5 stars, only on completed cycles, only between
+             directly-connected partners) + average-rating badges
+  Phase 1c : In-app chat scoped to confirmed exchanges (5-second polling, no WebSockets)
+  Phase 1d : Notifications (match found / accepted / rejected / session completed /
+             new message / credit session) with an unread bell in the navbar
+  Phase 2a : Skill proficiency levels (BEGINNER / INTERMEDIATE / EXPERT) used as a
+             matching tie-breaker between equally-sized cycles
+  Phase 2b : Admin analytics — cycle-size breakdown + "cyclic vs direct-swap-only"
+             proof number (/admin page)
+  Phase 3  : Credit fallback — teach a one-off lesson now and earn 1 credit, or
+             redeem 1 credit to be taught a wanted skill instead of waiting for
+             a full cycle
+
+--------------------------------------------------------------------------------
+2. TECH STACK
+--------------------------------------------------------------------------------
+Backend:
+  - Node.js (>= 18) + Express 4 (REST API, CommonJS modules)
+  - Prisma ORM 6 + PostgreSQL (>= 14)
+  - JSON Web Tokens (jsonwebtoken) for auth, bcryptjs for password hashing
+  - express-rate-limit (login/signup brute-force guard: 20 attempts/IP/15 min)
+  - cors (wide open for the demo), dotenv for config
+  - Vitest for unit tests (29 tests)
+  - Optional Docker (docker-compose: postgres:16-alpine + backend + nginx frontend)
+
+Frontend:
+  - React 18 + Vite 6 + Tailwind CSS 4 (via @tailwindcss/vite plugin)
+  - react-router-dom v6 for routing
+  - axios (API client with JWT interceptor)
+  - recharts for the admin analytics charts
+  - No TypeScript — plain JavaScript/JSX
+
+Infrastructure:
+  - GitHub Actions CI (.github/workflows/ci.yml): runs backend unit tests +
+    production frontend build on every push/PR to master
+  - render.yaml blueprint: single free Render web service builds BOTH the
+    backend and the frontend (Express serves the built React app itself) +
+    free PostgreSQL database
+  - Docker Compose for local one-command demo (web UI on :8080, API on :4000)
+
+--------------------------------------------------------------------------------
+3. REPOSITORY STRUCTURE
+--------------------------------------------------------------------------------
+backend/
+  prisma/schema.prisma        # database schema (User, Skill, MatchCycle, ...)
+  scripts/seed.js             # skill taxonomy + 14 demo users (Priya is admin)
+  scripts/smoke.js            # automated end-to-end HTTP smoke test
+  src/index.js                # Express app entry (also serves built frontend)
+  src/lib/prisma.js           # PrismaClient singleton
+  src/middleware/auth.js      # requireAuth + requireAdmin + signToken
+  src/routes/                 # authRoutes, profileRoutes, matchRoutes, featureRoutes
+  src/controllers/            # auth, profile, match, chat, rating, notification,
+                              #   admin, credit controllers
+  src/services/               # matchingEngine (PURE), matchingService (DB-facing),
+                              #   notificationService, ratingService, creditService
+  tests/                      # vitest unit tests (matchingEngine, credit, rating)
+frontend/
+  src/App.jsx                 # routes + protected/admin route guards
+  src/main.jsx                # React bootstrap
+  src/api/client.js           # axios instance (JWT header + 401 redirect)
+  src/context/AuthContext.jsx # auth state (login/signup/logout/refresh)
+  src/pages/                  # Auth, Dashboard, SetupSkills, MatchReview,
+                              #   Exchanges, Admin, Credits
+  src/components/             # Navbar (notification bell), CycleChain, SkillPicker
+  vite.config.js              # dev server on :5173, proxies /api -> localhost:4000
+
+--------------------------------------------------------------------------------
+4. DATABASE MODEL (Prisma schema)
+--------------------------------------------------------------------------------
+SkillLevel enum: BEGINNER | INTERMEDIATE | EXPERT
+
+User
+  id, name, email (unique), passwordHash, department?, isAdmin (bool),
+  createdAt
+  Relations: offered[] (UserOfferedSkill), wanted[] (UserWantedSkill),
+  participants[] (MatchCycleParticipant), blockedEdgesFrom/To,
+  ratingsGiven/Received, messages[], notifications[], credits[],
+  creditSessionsTaught/Learned
+
+Skill
+  id, name (unique)  — FIXED TAXONOMY (~36 skills, no free-text allowed,
+  so matching stays precise). Example skills: Python, JavaScript, React,
+  Graphic Design, Photoshop, Guitar, Piano, Cooking, Spanish, Excel,
+  Public Speaking, Mathematics Tutoring, etc.
+
+UserOfferedSkill
+  id, userId, skillId, level (default INTERMEDIATE)
+  @@unique([userId, skillId]) — the skill the user can TEACH and their
+  claimed proficiency in teaching it.
+
+UserWantedSkill
+  id, userId, skillId, level (default BEGINNER)
+  @@unique([userId, skillId]) — the skill the user wants to LEARN and their
+  current level.
+
+MatchCycle
+  id, status (proposed -> confirmed -> completed | rejected),
+  completedAt?, createdAt
+  participants[] (MatchCycleParticipant), ratings[], messages[]
+
+MatchCycleParticipant
+  id, cycleId, userId, teachesSkillId, learnsSkillId,
+  accepted (bool?, null = pending), completedAt (datetime?)
+  @@unique([cycleId, userId])
+  Semantics: participant LEARNS teachesSkillId from the person who TEACHES
+  it, and TEACHES learnsSkillId to the person who LEARNS it. A cycle is
+  CONFIRMED when every participant has accepted; COMPLETED when every
+  participant has a completedAt.
+
+BlockedEdge
+  id, fromUserId, toUserId, @@unique([fromUserId, toUserId])
+  INTERNAL table: when a user rejects a cycle, the specific edge that made
+  the cycle possible (rejector -> the teacher of the skill they wanted) is
+  recorded so the engine never proposes that same swap again.
+
+Rating
+  id, cycleId, raterId, rateeId, score (1..5), comment?, createdAt
+  @@unique([cycleId, raterId, rateeId])
+  Only allowed on COMPLETED cycles and only between participants who were
+  DIRECTLY connected in the exchange chain (adjacency rule, see 6.5).
+
+Message
+  id, cycleId, senderId, content (max 1000 chars), createdAt
+  Chat is scoped to a confirmed/completed cycle; participants only.
+
+Notification
+  id, userId, type, content, read (bool), createdAt
+  @@index([userId, read])
+  types: match_found | match_accepted | match_rejected | session_completed |
+         new_message | credit_session
+
+Credit
+  id, userId, delta (+1 earned / -1 spent), reason (teach_now | redeem |
+  refund), sessionId?, createdAt
+  @@index([userId])
+  Ledger semantics: balance = SUM(delta). +1 when a teacher completes a
+  one-off lesson; -1 when a learner redeems (reserved at request time);
+  +1 refund when a learner-initiated session is declined.
+
+CreditSession
+  id, teacherId, learnerId, skillId, createdBy ('teacher' | 'learner'),
+  status (proposed -> active -> completed | declined), createdAt,
+  completedAt?
+  @@index([teacherId]), @@index([learnerId]), @@index([status])
+  A direct one-sided exchange between an unmatched teacher and a learner,
+  used by the credit fallback. The user who did NOT initiate the session is
+  the only one who may accept/decline it.
+
+--------------------------------------------------------------------------------
+5. AUTHENTICATION & SECURITY
+--------------------------------------------------------------------------------
+- POST /api/auth/signup + /api/auth/login return { token, user }.
+- Token = JWT signed with JWT_SECRET (env var, REQUIRED — the backend refuses
+  to boot without it), payload { sub: userId, email }, expires in 7 days.
+- Passwords hashed with bcrypt (cost 10).
+- Every protected endpoint requires: Authorization: Bearer <jwt>.
+  Middleware requireAuth verifies the token and re-checks the user still
+  exists; requireAdmin additionally checks isAdmin.
+- Rate limit on /api/auth: max 20 login/signup attempts per IP per 15 minutes.
+- The frontend stores the token in localStorage (key kc_token) and attaches it
+  via an axios request interceptor; a 401 response clears the session and
+  redirects to /auth.
+
+--------------------------------------------------------------------------------
+6. CORE ALGORITHM — CYCLIC MATCHING ENGINE
+--------------------------------------------------------------------------------
+Files: backend/src/services/matchingEngine.js (PURE, no DB — unit-tested)
+       backend/src/services/matchingService.js (DB-facing wrapper)
+
+6.1 Problem
+  Direct matching only works when "A wants what B offers AND B wants what A
+  offers" (a 2-person cycle). KaushalChakra generalizes this to cycles of
+  2-5 users where every user's wanted skill is taught by the NEXT user in
+  the cycle, forming a closed loop.
+
+6.2 buildGraph(users, { blockedEdges, skipUserIds })
+  - Input: users as { id, offered: skillIds[], wanted: skillIds[] }.
+  - Builds an index: skillId -> list of userIds who OFFER that skill.
+  - Directed adjacency map: userId -> Map(neighborId -> skillId),
+    where an edge U -> V exists when V offers a skill that U wants.
+    The edge carries the skill id taught by V to U.
+  - Exclusions: self-loops (can't teach yourself), blocked edges
+    (previously rejected, format "fromUserId->toUserId"), and
+    skipUserIds (users already in a proposed/confirmed cycle).
+
+6.3 findCycles(graph, { minLength = 2, maxLength = 5 })
+  - Bounded-depth DFS from every node. A cycle is recorded when the walk
+    returns to the start node with path length in [minLength, maxLength].
+  - Nodes are never revisited inside the current path.
+  - Duplicate cycles (same user set found from different start nodes) are
+    de-duplicated by a canonical signature (sorted user ids joined by ",").
+  - Each returned cycle: { userIds: [...], edges: [{ fromUserId, toUserId,
+    skillId }] } where fromUserId is the LEARNER and toUserId is the TEACHER.
+
+6.4 matchUsers(users, options)
+  - Runs buildGraph + findCycles, then a GREEDY pass:
+    1. Sort all cycles by (length ASC, levelScore DESC, first userId ASC).
+    2. Pick each cycle whose users are all still unused; mark them used.
+  - This guarantees every user is in AT MOST ONE cycle at a time, and shorter
+    cycles (fewer people to co-ordinate) are preferred.
+  - Optional tie-breaker: options.levelScore(cycle) -> number. The DB wrapper
+    scores a cycle by how many edges are a "good fit": the teacher's offered
+    level (rank BEGINNER=1 < INTERMEDIATE=2 < EXPERT=3) is >= the learner's
+    wanted level. Among same-length cycles, the higher-scoring one wins.
+
+6.5 Participants from a cycle (participantsFromCycle)
+  For cycle [a, b, c] with edges a->b (S1), b->c (S2), c->a (S3):
+    a: teaches S3, learns S1
+    b: teaches S1, learns S2
+    c: teaches S2, learns S3
+
+6.6 matchingService.runMatching()
+  DB-facing orchestration:
+  1. loadActiveUserIds() — every participant in a proposed/confirmed cycle
+     is excluded from matching (one active cycle per user).
+  2. loadGraphData() — all users + skill ids/levels + blocked edges.
+  3. loadRecentlyCompletedSignatures() — signatures of cycles completed in
+     the last 24h are NOT re-proposed (no instant duplicate exchanges).
+  4. matchUsers() with the proficiency level tie-breaker.
+  5. Persist each chosen cycle as a MatchCycle (status 'proposed') with its
+     participants, and fire a 'match_found' notification to all participants.
+  runMatching is triggered automatically whenever skills change (PUT
+  /api/profile/skills), when a cycle is rejected, when a cycle completes —
+  and manually via POST /api/match/run (dashboard button, used in demos).
+
+6.7 Rating adjacency rule (backend/src/services/ratingService.js)
+  In a cycle, each user only directly exchanges with their immediate
+  neighbors. canRateEachOther(participants, raterId, rateeId) returns true
+  iff rater.learnsSkillId === ratee.teachesSkillId OR
+  rater.teachesSkillId === ratee.learnsSkillId. Non-adjacent users in the
+  same cycle cannot rate each other. (In a 4-person cycle A->B->C->D->A,
+  A can rate B and D but NOT C.)
+
+--------------------------------------------------------------------------------
+7. API REFERENCE
+--------------------------------------------------------------------------------
+Base URL: http://localhost:4000/api  (dev proxy: frontend :5173 -> :4000)
+All endpoints EXCEPT signup/login require: Authorization: Bearer <jwt>
+
+Auth:
+  POST   /auth/signup        { name, email, password, department? } -> 201 { token, user }
+  POST   /auth/login         { email, password } -> { token, user }
+  GET    /auth/me            -> { user } (with offered/wanted skills)
+
+Profile & skills:
+  GET    /skills             -> { skills: [...] } (fixed taxonomy)
+  GET    /profile            -> { user } (with offered/wanted skills)
+  PUT    /profile/skills     { offered: [{id, level?} | id], wanted: [...] }
+                             -> { ok, newCyclesProposed } ; REPLACES the lists,
+                             then re-runs matching. level: BEGINNER |
+                             INTERMEDIATE | EXPERT (offered defaults
+                             INTERMEDIATE, wanted defaults BEGINNER).
+
+Matching & cycles:
+  POST   /match/run          -> { cycles: [...] } (manual trigger)
+  GET    /match/status       -> { status: 'no-profile' | 'waiting' |
+                                  'proposed' | 'confirmed' | 'completed',
+                                  cycle?, myParticipant? }
+  GET    /match/cycle/:id    -> { cycle } (participant only; full details)
+  POST   /match/cycle/:id/accept -> marks MY acceptance; when ALL accept the
+                                  cycle becomes 'confirmed' and contact info
+                                  (emails) is revealed to participants
+  POST   /match/cycle/:id/reject -> blocks the offending edge, marks the
+                                  cycle 'rejected', notifies others, re-runs
+                                  matching for the freed users
+  POST   /match/cycle/:id/complete (alias /cycles/:id/complete)
+                                  -> marks MY side done; when ALL are done the
+                                  cycle becomes 'completed' and matching re-runs
+  GET    /match/exchanges?limit=&offset= -> confirmed+completed history for me
+                                  (paginated, default limit 20, max 100)
+  GET    /debug/graph        -> raw adjacency list + findable cycles (viva aid)
+
+Chat (confirmed/completed cycles only):
+  GET    /cycles/:id/messages  -> { messages } oldest first
+  POST   /cycles/:id/messages  { content } (<= 1000 chars) -> 201 { message }
+                                 notifies other participants
+
+Ratings:
+  POST   /ratings            { cycleId, rateeId, score (1-5), comment? }
+                             -> 201 { rating } ; only on completed cycles,
+                             adjacent partners only, unique per (cycle,rater,
+                             ratee) -> 409 on duplicate
+  GET    /users/:id/ratings  -> { average, count, ratings (last 10) }
+
+Notifications:
+  GET    /notifications      -> { notifications (last 30), unreadCount }
+  POST   /notifications/:id/read -> mark one read
+  POST   /notifications/read-all -> { ok, marked }
+
+Admin (requireAdmin):
+  GET    /admin/stats        -> { totalUsers, totalConfirmedCycles,
+                                 waitingUsers, cycleSizeBreakdown
+                                 ({2,3,4,5: count}), comparison:
+                                 { matchedByCyclicEngine,
+                                   matchedByDirectSwapOnly,
+                                   matchedOnlyViaCycles,
+                                   pctWouldNotMatchWithoutCycles } }
+    - The cyclic-vs-direct comparison runs matchUsers with maxLength 2
+      (direct-swap-only) vs the default (up to 5); the headline % proves
+      the cyclic engine matches users 1-to-1 swaps would never match.
+
+Credits (Phase 3):
+  GET    /credits            -> { balance (FULL ledger sum), ledger (last 50),
+                                 sessions }
+  POST   /credits/teach      { skillId } -> creates a session where I teach;
+                             requires: I offer the skill, no active cycle, no
+                             open credit session, min account age if
+                             CREDIT_MIN_WAIT_DAYS env set. Partner = first
+                             available user who WANTS the skill. I earn +1
+                             credit when the session is completed.
+  POST   /credits/redeem     { skillId } -> requires: I want the skill, no
+                             active cycle/open session, balance >= 1. Creates
+                             the session and IMMEDIATELY debits -1 (reserved
+                             at request time). Partner = first available user
+                             who OFFERS the skill.
+  POST   /credits/sessions/:id/accept  -> only the auto-assigned partner can
+                             respond; proposed -> active
+  POST   /credits/sessions/:id/decline -> proposed -> declined; refunds the
+                             -1 reservation if the learner initiated
+  POST   /credits/sessions/:id/complete-> active -> completed; teacher earns
+                             +1 'teach_now' credit
+
+Error format: { error: "message" } with appropriate HTTP status codes
+(400 validation, 401 auth, 403 forbidden, 404 not found, 409 conflict).
+Unmatched /api/* routes return JSON 404.
+
+Enriched cycle payload (enrichCycle/enrichCycles):
+  Each participant gets teachesLevel/learnsLevel (proficiency) and their
+  user object gains avgRating/ratingCount. Emails are null while 'proposed'
+  and revealed only when status is 'confirmed' or 'completed'.
+
+--------------------------------------------------------------------------------
+8. FRONTEND PAGES & FLOW
+--------------------------------------------------------------------------------
+Routes (frontend/src/App.jsx):
+  /auth       Auth page — login/signup toggle, gradient UI, demo account hint
+  /           Dashboard (protected) — shows my match status and the cycle
+              I am part of (proposed/confirmed/completed), "Run matching now"
+              button when waiting, link to pick skills when no profile
+  /skills     SetupSkills — pick offered/wanted skills from the taxonomy as
+              chips + set proficiency per skill; save re-runs matching and
+              shows how many new cycles were proposed
+  /match/:id  MatchReview — full cycle chain (CycleChain), acceptance status
+              per participant, contact details (only after confirmation),
+              accept/reject buttons (while proposed), chat (confirmed/
+              completed; polls every 5s, auto-scroll near bottom, 1000-char
+              limit counter)
+  /exchanges  Exchanges — paginated history (10/page); per cycle: completion
+              state per participant, "Mark session complete" button, contact
+              details, star ratings (1-5 + optional comment) ONLY for directly
+              connected partners once the whole cycle is completed
+  /credits    Credits — balance card, open sessions count, "Teach now -> earn
+              1 credit" and "Redeem 1 credit -> learn now" skill dropdowns,
+              session list with accept/decline/complete actions (responder-
+              scoped), ledger history
+  /admin      Admin (isAdmin only) — stat cards, cycle-size bar chart,
+              cyclic-vs-direct-swap bar chart with the headline %
+
+Shared components:
+  Navbar — links, notification bell (polled every 20s) with unread badge,
+    dropdown with per-item read + "mark all read", logout
+  CycleChain — renders the exchange as a readable closed loop
+    ("You teach Python to Simran -> Simran teaches Photography to Rohan ->
+    Rohan teaches Guitar to you") with proficiency badges and avg-rating stars
+  SkillPicker — multi-select chip grid
+
+API client conventions:
+  - baseURL '/api' (Vite dev proxy forwards to :4000; in production Express
+    serves the same origin)
+  - request interceptor injects Bearer token from localStorage
+  - response interceptor: on 401 clears session and redirects to /auth
+
+--------------------------------------------------------------------------------
+9. DEMO DATA (scripts/seed.js — 14 users, ALL password: "password123")
+--------------------------------------------------------------------------------
+Skill taxonomy: 36 skills, no free-text.
+
+3-person cycle (Aarav -> Simran -> Rohan -> Aarav):
+  Aarav wants Photography (Simran offers it)
+  Simran wants Guitar (Rohan offers it)
+  Rohan wants Python (Aarav offers it)
+
+4-person cycle (Priya -> Neha -> Vikram -> Ananya -> Priya):
+  Priya wants Spanish, Neha wants Video Editing, Vikram wants Public
+  Speaking, Ananya wants Excel.
+
+Direct 2-person swap (Kunal <-> Meera): each wants what the other offers.
+
+Waiting pool: Ishaan (offers Physics Tutoring, wants Piano), Sara, Dev.
+
+Credit fallback pool: Vihaan (wants Physics Tutoring — Ishaan offers it, but
+no closing edge so no cycle forms) and Riya (offers Piano — what Ishaan
+wants — but wants German which nobody offers). These one-way pairs power the
+teach-now/redeem demo.
+
+Priya Iyer (priya@demo.com) is flagged isAdmin -> /admin access.
+
+Seed is idempotent: re-running it refreshes demo users/skills but preserves
+existing matches/credits UNLESS SEED_FRESH=1 (or the database was empty).
+
+Suggested demo flow:
+  1. Login as Aarav -> accept the proposed 3-way cycle.
+  2. As Simran and Rohan, accept too -> cycle CONFIRMS -> chat + contact info
+     unlock.
+  3. Everyone marks "session complete" -> cycle COMPLETES -> rate partners.
+  4. Priya -> /admin shows the cycle-size chart and the % of matched users
+     that would NOT match with 1-to-1 swaps only.
+  5. Ishaan -> /credits -> teach Physics to Vihaan, complete -> +1 credit ->
+     redeem to learn Piano from Riya.
+
+--------------------------------------------------------------------------------
+10. SETUP & RUNNING
+--------------------------------------------------------------------------------
+Requirements: Node.js 18+, PostgreSQL 14+ on localhost:5432.
+
+  # 1. create database
+  psql -U postgres -c "CREATE DATABASE kaushalchakra;"
+
+  # 2. backend (.env needs DATABASE_URL + JWT_SECRET — see backend/.env.example)
+  cd backend
+  npm install
+  npx prisma migrate dev     # applies migrations
+  npm run seed               # taxonomy + 14 demo users
+  npm test                   # 29 unit tests
+  npm run dev                # http://localhost:4000
+
+  # 3. frontend
+  cd ../frontend
+  npm install
+  npm run dev                # http://localhost:5173 (proxies /api -> :4000)
+
+Docker (alternative): docker compose up --build -> UI at :8080, API at :4000.
+The backend container runs migrations + seed automatically; SEED_FRESH=1
+wipes existing progress.
+
+Smoke test: with the backend running and seeded, `node scripts/smoke.js`
+drives the whole product over HTTP (login, accept cycle, complete, rate,
+chat, notifications, pagination, admin stats, credit earn/redeem) and exits
+0 if every check passes.
+
+Deployment (Render): render.yaml blueprint provisions one free web service
+(builds backend AND frontend; Express serves frontend/dist) + a free
+PostgreSQL. Free DB expires after 30 days; swap DATABASE_URL to Neon for a
+permanent free database.
+
+CI: every push/PR to master runs the 29 backend unit tests and a production
+frontend build on GitHub Actions.
+
+--------------------------------------------------------------------------------
+11. IMPORTANT DESIGN NOTES / CONSTRAINTS
+--------------------------------------------------------------------------------
+- One active cycle per user: while a user is in a proposed or confirmed
+  cycle, the engine skips them entirely.
+- No instant duplicates: a cycle whose exact user set completed within the
+  last 24 hours is never re-proposed.
+- Rejected edges are permanent: the specific swap a user rejected can never
+  be proposed to them again (BlockedEdge table).
+- Chat has no WebSockets — the frontend polls every 5 seconds.
+- Matching is deterministic-ish: cycles sorted by length, proficiency score,
+  then user id.
+- cycleSizeBreakdown and the admin comparison are computed against the
+  CURRENT graph state, not only persisted cycles.
+- The matching engine itself is a pure module (no framework/DB imports) so
+  it is unit-tested in isolation and could be reused in other projects.
+
+--------------------------------------------------------------------------------
+12. KNOWN INTENTIONAL TRADE-OFFS (for context, not bugs)
+--------------------------------------------------------------------------------
+- JWT stored in localStorage (XSS surface) — acceptable for a demo/viva app.
+- CORS is fully open — fine for a demo; restrict before production.
+- Chat is polling-based, not real-time — MVP scope decision.
+- Free-text skills are deliberately disabled (fixed taxonomy) so that the
+  cyclic matching stays precise.
+
+================================================================================
+END OF PROJECT DESCRIPTION
+================================================================================

@@ -10,6 +10,7 @@ export default function MatchReview() {
   const navigate = useNavigate();
   const [cycle, setCycle] = useState(null);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
@@ -17,7 +18,17 @@ export default function MatchReview() {
   const chatEndRef = useRef(null);
   const chatBoxRef = useRef(null);
 
-  const load = () => api.get(`/match/cycle/${id}`).then(({ data }) => setCycle(data.cycle)).catch(() => {});
+  const load = () =>
+    api
+      .get(`/match/cycle/${id}`)
+      .then(({ data }) => {
+        setCycle(data.cycle);
+        setLoadError('');
+      })
+      .catch((err) => {
+        setCycle(null);
+        setLoadError(err.response?.data?.error || 'Failed to load this cycle');
+      });
 
   useEffect(() => {
     load();
@@ -69,6 +80,17 @@ export default function MatchReview() {
       setBusy(false);
     }
   };
+
+  if (loadError) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
+        <p className="text-rose-300">{loadError}</p>
+        <Link to="/" className="inline-block text-indigo-300 underline text-sm">
+          Back to dashboard
+        </Link>
+      </div>
+    );
+  }
 
   if (!cycle) {
     return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-indigo-200">Loading cycle…</div>;

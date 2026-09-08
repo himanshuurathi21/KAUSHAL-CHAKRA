@@ -1,5 +1,6 @@
 # KaushalChakra — one-command demo stack (PostgreSQL + API + web UI)
 # Usage: docker compose up --build   then open http://localhost:8080
+# Required: create a .env file with JWT_SECRET=<your-secret> (see .env.example)
 services:
   db:
     image: postgres:16-alpine
@@ -19,7 +20,7 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/kaushalchakra?schema=public
-      JWT_SECRET: NovYs7e6j4mmjOi2S7HZZCni07uGajGyrkjxLjz799AQ4EWBcZMncLA7/F+Ja570
+      JWT_SECRET: ${JWT_SECRET}
       PORT: 4000
     ports:
       - "4000:4000"
