@@ -44,4 +44,27 @@ describe('rating adjacency — 4-person cycle', () => {
     expect(canRateEachOther(cycle, 1, 99)).toBe(false);
     expect(canRateEachOther(cycle, 99, 1)).toBe(false);
   });
+
+  it('blocks self-rating', () => {
+    expect(canRateEachOther(cycle, 1, 1)).toBe(false);
+  });
+
+  it('blocks pairs with no direct edge even when a skill id coincides', () => {
+    // B learns Python(10) from A, but D also teaches Python(10) to C.
+    // Old skill-equality logic let B rate D; edge resolution blocks it
+    // because B's actual teacher is A.
+    const tricky = [
+      { userId: 1, teachesSkillId: 10, learnsSkillId: 40 }, // A teaches Python to B
+      { userId: 2, teachesSkillId: 20, learnsSkillId: 10 }, // B learns Python from A
+      { userId: 3, teachesSkillId: 30, learnsSkillId: 10 }, // C learns Python from D
+      { userId: 4, teachesSkillId: 10, learnsSkillId: 30 }, // D teaches Python to C
+    ];
+    expect(canRateEachOther(tricky, 2, 4)).toBe(false);
+    expect(canRateEachOther(tricky, 2, 3)).toBe(false);
+    // Real edges still work: A<->B, C<->D
+    expect(canRateEachOther(tricky, 1, 2)).toBe(true);
+    expect(canRateEachOther(tricky, 2, 1)).toBe(true);
+    expect(canRateEachOther(tricky, 3, 4)).toBe(true);
+    expect(canRateEachOther(tricky, 4, 3)).toBe(true);
+  });
 });

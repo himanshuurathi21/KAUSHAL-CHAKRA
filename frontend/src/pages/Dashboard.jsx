@@ -5,11 +5,17 @@ import api from '../api/client';
 export default function Dashboard() {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
 
+  const load = () => {
+    setLoadError('');
+    api.get('/match/status').then(({ data }) => setStatus(data)).catch(() => setLoadError('Could not reach the server.'));
+  };
+
   useEffect(() => {
-    api.get('/match/status').then(({ data }) => setStatus(data)).catch(() => {});
+    load();
   }, []);
 
   const runMatching = async () => {
@@ -18,7 +24,8 @@ export default function Dashboard() {
     try {
       const { data } = await api.post('/match/run');
       if (data.cycles.length > 0) {
-        window.location.reload();
+        const { data: fresh } = await api.get('/match/status');
+        setStatus(fresh);
       } else {
         setError('No new cycles could be formed with the current skills.');
       }
@@ -28,6 +35,20 @@ export default function Dashboard() {
       setBusy(false);
     }
   };
+
+  if (loadError) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
+        <p className="text-rose-300">{loadError}</p>
+        <button
+          onClick={load}
+          className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 cursor-pointer"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   if (!status) {
     return (
@@ -104,14 +125,14 @@ export default function Dashboard() {
                 <p className="text-xs text-emerald-300/80 uppercase tracking-wide">You teach</p>
                 <p className="text-xl font-bold text-white mt-1">{status.myParticipant.teachesSkill.name}</p>
                 <p className="text-sm text-indigo-200 mt-1">
-                  to {status.cycle.participants.find((p) => p.learnsSkillId === status.myParticipant.teachesSkillId)?.user.name}
+                  to {status.cycle.participants.find((p) => p.learnsSkillId === status.myParticipant.teachesSkillId)?.user?.name ?? 'your partner'}
                 </p>
               </div>
               <div className="bg-sky-500/10 border border-sky-400/30 rounded-xl p-4">
                 <p className="text-xs text-sky-300/80 uppercase tracking-wide">You learn</p>
                 <p className="text-xl font-bold text-white mt-1">{status.myParticipant.learnsSkill.name}</p>
                 <p className="text-sm text-indigo-200 mt-1">
-                  from {status.cycle.participants.find((p) => p.teachesSkillId === status.myParticipant.learnsSkillId)?.user.name}
+                  from {status.cycle.participants.find((p) => p.teachesSkillId === status.myParticipant.learnsSkillId)?.user?.name ?? 'your partner'}
                 </p>
               </div>
             </div>

@@ -178,10 +178,34 @@ async function main() {
   check('teach-now creates a session', teachOk, `${teach.status} ${teach.data?.error || ''}`);
 
   const sessions = (await api('GET', '/api/credits', ishaan.token)).data.sessions;
-  const open = sessions.find((x) => x.status === 'proposed');
+  const open = sessions.find((x) => x.status === 'proposed' || x.status === 'active');
+  if (open && open.status === 'proposed') {
+    // Only the invited partner (who did NOT initiate) may accept:
+    // proposed -> active. Ishaan teaches Physics to Vihaan Rao.
+    const partner = open.teacher.id === ishaan.user.id ? open.learner : open.teacher;
+    const partnerEmail = partner.name.startsWith('Vihaan') ? 'vihaan@demo.com'
+      : partner.name.startsWith('Riya') ? 'riya@demo.com' : null;
+    if (partnerEmail) {
+      const buddy = await login(partnerEmail);
+      const acc = await api('POST', `/api/credits/sessions/${open.id}/accept`, buddy.token);
+      check('partner accepts credit session', acc.status === 200, `${acc.status} ${acc.data?.error || ''}`);
+    } else {
+      check('partner accepts credit session', false, `unknown partner ${partner.name}`);
+    }
+  }
   if (open) {
-    const done = await api('POST', `/api/credits/sessions/${open.id}/complete`, ishaan.token);
-    check('credit session completes', done.status === 200, done.status);
+    // Two-sided completion: the initiator marks done (no mint yet), then the
+    // partner marks done too — only then does the teacher earn +1.
+    const done1 = await api('POST', `/api/credits/sessions/${open.id}/complete`, ishaan.token);
+    check('initiator marks session done', done1.status === 200, done1.status);
+    const other = open.teacher.id === ishaan.user.id ? open.learner : open.teacher;
+    const buddy2 = await login(other.name.startsWith('Vihaan') ? 'vihaan@demo.com' : 'riya@demo.com');
+    const done2 = await api('POST', `/api/credits/sessions/${open.id}/complete`, buddy2.token);
+    check(
+      'partner confirms, session completes',
+      done2.status === 200 && done2.data.session.status === 'completed',
+      `${done2.status} ${done2.data.session?.status || ''}`
+    );
   }
   const balance1 = (await api('GET', '/api/credits', ishaan.token)).data.balance;
   check('teacher earned +1 credit', balance1 === balance0 + 1, `balance ${balance0} -> ${balance1}`);
@@ -194,6 +218,54 @@ async function main() {
       check('credit spent on redeem', balance2 === balance1 - 1, `balance ${balance1} -> ${balance2}`);
     }
   }
+
+  // ---------------------------------------------------------- verification
+  console.log('\n[verification]');
+  const verifySkills = (await api('GET', '/api/skills', aarav.token)).data.skills;
+  const python = verifySkills.find((x) => x.name === 'Python');
+  const quiz = await api('GET', `/api/verify/quiz/${python.id}`, aarav.token);
+  check(
+    'quiz loads with answers stripped',
+    quiz.status === 200 &&
+      quiz.data.questions.length >= 5 &&
+      quiz.data.questions.every((q) => !('answer' in q) && q.options.length === 4),
+    quiz.status
+  );
+  // All-wrong submission must grade + record a rejection (not crash).
+  const quizAllWrong = await api('POST', `/api/verify/quiz/${python.id}/submit`, aarav.token, {
+    answers: quiz.data.questions.map(() => -1),
+    claimedLevel: 'EXPERT',
+  });
+  check(
+    'wrong answers fail EXPERT gracefully',
+    quizAllWrong.status === 201 && quizAllWrong.data.passed === false && quizAllWrong.data.score === 0,
+    `${quizAllWrong.status} ${JSON.stringify(quizAllWrong.data)}`
+  );
+  const cert = await api('POST', '/api/verify/certificate', aarav.token, {
+    skillId: python.id,
+    claimedLevel: 'INTERMEDIATE',
+    evidenceUrl: 'https://example.com/cert/python-101',
+    issuer: 'Smoke Board',
+  });
+  check('certificate submits as pending', cert.status === 201 && cert.data.verification.status === 'pending', cert.status);
+  const certId = cert.data?.verification?.id;
+  if (!certId) {
+    check('admin sees the pending queue', false, 'certificate submission failed');
+    check('admin approval works', false, 'certificate submission failed');
+  } else {
+    const queue = await api('GET', '/api/verify/pending', priya.token);
+    check('admin sees the pending queue', queue.status === 200 && queue.data.verifications.some((v) => v.id === certId), queue.status);
+    const reviewed = await api('POST', `/api/verify/${certId}/review`, priya.token, { approve: true });
+    check('admin approval works', reviewed.status === 200 && reviewed.data.verification.status === 'approved', reviewed.status);
+    const nonAdminReview = await api('POST', `/api/verify/${certId}/review`, aarav.token, { approve: true });
+    check('non-admin review blocked (403)', nonAdminReview.status === 403, nonAdminReview.status);
+  }
+  const mineVerify = await api('GET', '/api/verify/mine', aarav.token);
+  check(
+    'approved verification listed for the user',
+    mineVerify.data.verifications.some((v) => v.skillId === python.id && v.status === 'approved'),
+    JSON.stringify(mineVerify.data.verifications.map((v) => v.status))
+  );
 
   console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
   process.exit(failures === 0 ? 0 : 1);

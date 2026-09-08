@@ -19,7 +19,7 @@ export default function CycleChain({ participants, myUserId }) {
         const next = chain[(i + 1) % chain.length];
         const isMe = p.userId === myUserId;
         return (
-          <li key={p.id} className="flex items-center gap-3">
+          <li key={p.id} className="flex flex-wrap items-center gap-3">
             <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-3">
               <span className="flex items-center gap-2 min-w-40">
                 <span className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-fuchsia-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
@@ -42,6 +42,11 @@ export default function CycleChain({ participants, myUserId }) {
                 {p.teachesLevel && (
                   <span className="px-2 py-0.5 rounded-md bg-white/10 border border-white/10 text-indigo-200 text-[10px] font-semibold uppercase tracking-wide">
                     {p.teachesLevel}
+                  </span>
+                )}
+                {isVerified(p.user?.verifiedLevels, p.teachesSkillId, p.teachesLevel) && (
+                  <span className="text-emerald-300 text-xs font-bold" title="Level verified by quiz or certificate">
+                    ✓
                   </span>
                 )}
               </span>
@@ -96,10 +101,16 @@ function buildChain(participants, myUserId) {
 }
 
 function initials(name) {
-  return name
+  return (name ?? '')
     .split(' ')
     .map((w) => w[0])
     .slice(0, 2)
     .join('')
     .toUpperCase();
+}
+
+/** True when the user holds an approved verification covering this skill+level. */
+function isVerified(verifiedLevels, skillId, level) {
+  if (!Array.isArray(verifiedLevels)) return false;
+  return verifiedLevels.some((v) => v.skillId === skillId && (!level || v.level === level));
 }

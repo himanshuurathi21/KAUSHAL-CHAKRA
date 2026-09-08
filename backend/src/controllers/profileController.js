@@ -22,6 +22,7 @@ async function getProfile(req, res, next) {
         wanted: { include: { skill: true } },
       },
     });
+    if (!user) return res.status(401).json({ error: 'User no longer exists' });
     res.json({ user: publicUser(user) });
   } catch (err) {
     next(err);
@@ -51,6 +52,13 @@ async function updateSkills(req, res, next) {
       });
     const offeredNorm = norm(offered);
     const wantedNorm = norm(wanted);
+
+    // Reject non-integer ids up front (NaN/floats would otherwise explode
+    // inside Prisma with a 500 instead of a clean 400).
+    const allNorm = [...offeredNorm, ...wantedNorm];
+    if (!allNorm.every((s) => Number.isInteger(s.id) && s.id > 0)) {
+      return res.status(400).json({ error: 'Every skill id must be a positive integer' });
+    }
 
     // Dedupe within each list (by skill id) — last entry wins
     const dedupe = (list) => {

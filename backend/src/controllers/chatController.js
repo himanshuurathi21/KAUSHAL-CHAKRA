@@ -45,7 +45,8 @@ async function sendMessage(req, res, next) {
     await notifyMany(
       access.cycle.participants.filter((p) => p.userId !== req.userId).map((p) => p.userId),
       'new_message',
-      `New message in your exchange chat.`
+      `New message in your exchange chat.`,
+      `/match/${cycleId}`
     );
 
     res.status(201).json({ message });
@@ -54,7 +55,11 @@ async function sendMessage(req, res, next) {
   }
 }
 
-/** GET /api/cycles/:id/messages — list chat messages, oldest to newest. */
+/**
+ * GET /api/cycles/:id/messages — list chat messages, oldest to newest.
+ * Supports incremental polling: `?sinceId=<last seen id>` returns only newer
+ * messages, `?limit=` caps the initial history batch (1..200, default 100).
+ */
 async function getMessages(req, res, next) {
   try {
     const cycleId = Number(req.params.id);
@@ -62,10 +67,18 @@ async function getMessages(req, res, next) {
     const access = await assertChatAccess(cycleId, req.userId);
     if (access.error) return res.status(access.status).json({ error: access.error });
 
+    const rawSince = req.query.sinceId;
+    const sinceId = rawSince === undefined ? null : Number(rawSince);
+    if (sinceId !== null && (!Number.isInteger(sinceId) || sinceId < 0)) {
+      return res.status(400).json({ error: 'sinceId must be a non-negative integer' });
+    }
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
+
     const messages = await prisma.message.findMany({
-      where: { cycleId },
+      where: { cycleId, ...(sinceId ? { id: { gt: sinceId } } : {}) },
       include: { sender: { select: { id: true, name: true } } },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { id: 'asc' },
+      take: limit,
     });
     res.json({ messages });
   } catch (err) {

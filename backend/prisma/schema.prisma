@@ -2,7 +2,8 @@
 // PostgreSQL database with the following models:
 // User, Skill, UserOfferedSkill, UserWantedSkill,
 // MatchCycle, MatchCycleParticipant, BlockedEdge (internal, tracks rejected edges),
-// Rating, Message, Notification
+// Rating, Message, Notification, Credit, CreditSession,
+// SkillVerification (quiz + certificate proof of claimed levels)
 
 generator client {
   provider = "prisma-client-js"
@@ -40,6 +41,8 @@ model User {
   credits          Credit[]
   creditSessionsTaught  CreditSession[]    @relation("CreditTeacher")
   creditSessionsLearned CreditSession[]    @relation("CreditLearner")
+  verifications    SkillVerification[]
+  reviewsDone      SkillVerification[] @relation("VerificationReviewer")
 }
 
 model Skill {
@@ -51,6 +54,7 @@ model Skill {
   teaches MatchCycleParticipant[] @relation("Teaches")
   learns  MatchCycleParticipant[] @relation("Learns")
   creditSessions CreditSession[]
+  verifications  SkillVerification[]
 }
 
 model UserOfferedSkill {
@@ -154,8 +158,9 @@ model Message {
 model Notification {
   id        Int      @id @default(autoincrement())
   userId    Int
-  type      String // match_found | match_accepted | match_rejected | session_completed | new_message
+  type      String // match_found | match_accepted | match_rejected | session_completed | new_message | credit_session | verification
   content   String
+  link      String? // deep-link path, e.g. /match/12 or /verify
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -181,6 +186,37 @@ model Credit {
   @@index([userId])
 }
 
+// Skill verification — proof that a user's claimed proficiency level is real.
+// Two methods:
+//   QUIZ        — auto-graded question bank; approved/rejected immediately.
+//   CERTIFICATE — link to an external certificate + issuer; an admin reviews.
+// A user holds at most one verification per (skill, method); retaking a quiz
+// overwrites the previous attempt.
+model SkillVerification {
+  id           Int        @id @default(autoincrement())
+  userId       Int
+  skillId      Int
+  claimedLevel SkillLevel
+  method       String // QUIZ | CERTIFICATE
+  status       String     @default("pending") // pending | approved | rejected
+  score        Int? // quiz: correct answers
+  total        Int? // quiz: questions asked
+  evidenceUrl  String? // certificate: link to the certificate
+  issuer       String? // certificate: who issued it
+  note         String? // optional context from the user
+  reviewerId   Int?
+  reviewedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill    Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("VerificationReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, skillId, method])
+  @@index([skillId, status])
+  @@index([status])
+}
 // A direct one-sided exchange between an unmatched teacher and a learner,
 // used by the credit fallback: teach now, earn a credit — or redeem a
 // credit to learn now instead of waiting for a cycle.
@@ -193,6 +229,10 @@ model CreditSession {
   status      String   @default("proposed") // proposed -> active -> completed | declined
   createdAt   DateTime @default(now())
   completedAt DateTime?
+  // Two-sided completion: the teacher's +1 mints only after BOTH sides
+  // mark the lesson done (kills single-sided self-minting).
+  teacherDoneAt DateTime?
+  learnerDoneAt DateTime?
 
   teacher User  @relation("CreditTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
   learner User  @relation("CreditLearner", fields: [learnerId], references: [id], onDelete: Cascade)

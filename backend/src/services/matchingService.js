@@ -17,8 +17,8 @@ const LEVEL_RANK = { BEGINNER: 1, INTERMEDIATE: 2, EXPERT: 3 };
 const RECENT_COMPLETION_WINDOW_HOURS = 24;
 
 /** Users who are currently in a proposed/confirmed cycle stay out of matching. */
-async function loadActiveUserIds() {
-  const rows = await prisma.matchCycleParticipant.findMany({
+async function loadActiveUserIds(db = prisma) {
+  const rows = await db.matchCycleParticipant.findMany({
     where: { cycle: { status: { in: ['proposed', 'confirmed'] } } },
     select: { userId: true },
   });
@@ -30,8 +30,8 @@ async function loadActiveUserIds() {
  * The engine never re-proposes the same user set within the window, so a
  * completed exchange doesn't instantly produce an identical duplicate.
  */
-async function loadRecentlyCompletedSignatures(hours = RECENT_COMPLETION_WINDOW_HOURS) {
-  const rows = await prisma.matchCycle.findMany({
+async function loadRecentlyCompletedSignatures(hours = RECENT_COMPLETION_WINDOW_HOURS, db = prisma) {
+  const rows = await db.matchCycle.findMany({
     where: { status: 'completed', completedAt: { gte: new Date(Date.now() - hours * 60 * 60 * 1000) } },
     include: { participants: { select: { userId: true } } },
   });
@@ -39,9 +39,9 @@ async function loadRecentlyCompletedSignatures(hours = RECENT_COMPLETION_WINDOW_
 }
 
 /** Load all users with their skill ids + levels, plus blocked edges. */
-async function loadGraphData() {
+async function loadGraphData(db = prisma) {
   const [users, blocked] = await Promise.all([
-    prisma.user.findMany({
+    db.user.findMany({
       select: {
         id: true,
         offered: { select: { skillId: true, level: true } },
@@ -110,8 +110,8 @@ function participantsFromCycle(cycle) {
 }
 
 /** Persist one engine cycle as a proposed MatchCycle + notify participants. */
-async function createCycleFromEngine(cycle) {
-  const created = await prisma.matchCycle.create({
+async function createCycleFromEngine(cycle, db = prisma) {
+  const created = await db.matchCycle.create({
     data: {
       status: 'proposed',
       participants: { create: participantsFromCycle(cycle) },
@@ -122,7 +122,9 @@ async function createCycleFromEngine(cycle) {
   await notifyMany(
     cycle.userIds,
     'match_found',
-    `A new ${cycle.userIds.length}-person exchange cycle has been proposed for you — review and accept it.`
+    `A new ${cycle.userIds.length}-person exchange cycle has been proposed for you — review and accept it.`,
+    `/match/${created.id}`,
+    db
   );
 
   return created;
@@ -132,33 +134,46 @@ async function createCycleFromEngine(cycle) {
  * Run the cyclic matching engine against the current database state and
  * persist every proposed cycle it finds.
  *
+ * Serialized with a Postgres advisory lock: without it, two overlapping runs
+ * load the same "free user" snapshot and propose the same user twice,
+ * violating the one-active-cycle-per-user invariant.
+ *
  * @returns {Promise<Array>} the newly proposed cycles (already in the DB)
  */
 async function runMatching() {
-  const skipUserIds = await loadActiveUserIds();
-  const data = await loadGraphData();
-  const recentlyCompleted = await loadRecentlyCompletedSignatures();
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(727271)`;
+      const skipUserIds = await loadActiveUserIds(tx);
+      const data = await loadGraphData(tx);
+      const recentlyCompleted = await loadRecentlyCompletedSignatures(
+        RECENT_COMPLETION_WINDOW_HOURS,
+        tx
+      );
 
-  const cycles = matchUsers(data.users, {
-    blockedEdges: data.blockedEdges,
-    skipUserIds,
-    levelScore: levelScoreFor(data),
-  });
+      const cycles = matchUsers(data.users, {
+        blockedEdges: data.blockedEdges,
+        skipUserIds,
+        levelScore: levelScoreFor(data),
+      });
 
-  const created = [];
-  for (const cycle of cycles) {
-    // A user may have been matched by another cycle in this same run
-    const stillFree = cycle.userIds.every((id) => !skipUserIds.has(id));
-    if (!stillFree) continue;
+      const created = [];
+      for (const cycle of cycles) {
+        // A user may have been matched by another cycle in this same run
+        const stillFree = cycle.userIds.every((id) => !skipUserIds.has(id));
+        if (!stillFree) continue;
 
-    // Do not re-propose a cycle that this exact user set just completed
-    const signature = [...cycle.userIds].sort((a, b) => a - b).join(',');
-    if (recentlyCompleted.has(signature)) continue;
+        // Do not re-propose a cycle that this exact user set just completed
+        const signature = [...cycle.userIds].sort((a, b) => a - b).join(',');
+        if (recentlyCompleted.has(signature)) continue;
 
-    created.push(await createCycleFromEngine(cycle));
-    cycle.userIds.forEach((id) => skipUserIds.add(id));
-  }
-  return created;
+        created.push(await createCycleFromEngine(cycle, tx));
+        cycle.userIds.forEach((id) => skipUserIds.add(id));
+      }
+      return created;
+    },
+    { timeout: 20000 }
+  );
 }
 
 module.exports = { runMatching, createCycleFromEngine, loadActiveUserIds, loadGraphData, loadRecentlyCompletedSignatures };

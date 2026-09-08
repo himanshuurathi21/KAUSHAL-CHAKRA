@@ -2,6 +2,22 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../lib/prisma');
 const { signToken } = require('../middleware/auth');
 
+/** Normalize + validate signup/login credentials. Returns {email, password} or {error}. */
+function checkCredentials(email, password) {
+  const normEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!/^\S+@\S+\.\S+$/.test(normEmail)) {
+    return { error: 'A valid email address is required' };
+  }
+  if (typeof password !== 'string' || password.length < 6) {
+    return { error: 'Password must be at least 6 characters' };
+  }
+  if (password.length > 72) {
+    // bcrypt silently truncates past 72 bytes — reject instead of weakening.
+    return { error: 'Password must be at most 72 characters' };
+  }
+  return { email: normEmail, password };
+}
+
 /** POST /api/auth/signup — create account, return JWT + user. */
 async function signup(req, res, next) {
   try {
@@ -9,18 +25,20 @@ async function signup(req, res, next) {
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'name, email and password are required' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'A valid name is required' });
     }
+    const checked = checkCredentials(email, password);
+    if (checked.error) return res.status(400).json({ error: checked.error });
 
-    const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const existing = await prisma.user.findUnique({ where: { email: checked.email } });
     if (existing) return res.status(409).json({ error: 'An account with this email already exists' });
 
     const user = await prisma.user.create({
       data: {
-        name,
-        email: email.toLowerCase(),
-        passwordHash: await bcrypt.hash(password, 10),
+        name: name.trim(),
+        email: checked.email,
+        passwordHash: await bcrypt.hash(checked.password, 10),
         department: department || null,
       },
     });
@@ -36,8 +54,11 @@ async function login(req, res, next) {
   try {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Invalid email or password' });
+    }
 
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -58,6 +79,7 @@ async function me(req, res, next) {
         wanted: { include: { skill: true } },
       },
     });
+    if (!user) return res.status(401).json({ error: 'User no longer exists' });
     res.json({ user: publicUser(user) });
   } catch (err) {
     next(err);

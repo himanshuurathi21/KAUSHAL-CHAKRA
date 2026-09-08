@@ -18,6 +18,7 @@ Tailwind** (frontend).
 | 2a | Skill proficiency levels (`BEGINNER`/`INTERMEDIATE`/`EXPERT`) used as a matching tie-breaker | Profile setup, cycle chains |
 | 2b | Admin analytics — cycle-size breakdown + cyclic-vs-direct-swap proof number | `/admin` |
 | 3 | Credit fallback — teach now and earn a credit, or redeem one to learn now | `/credits` |
+| 4 | Skill verification — quizzes (instant badge) + certificates (admin review) prove claimed levels | `/verify` |
 
 The core is a **bounded-depth DFS cyclic matching engine**
 (`backend/src/services/matchingEngine.js`) — a pure, unit-tested module that
@@ -82,6 +83,10 @@ POST /api/notifications/:id/read
 GET  /api/admin/stats                     (admin only)
 GET  /api/credits                         POST /api/credits/teach
 POST /api/credits/redeem                  POST /api/credits/sessions/:id/complete
+GET  /api/verify/quiz/:skillId            POST /api/verify/quiz/:skillId/submit
+POST /api/verify/certificate              GET  /api/verify/mine
+GET  /api/verify/pending                  (admin only)
+POST /api/verify/:id/review               (admin only)
 ```
 
 All endpoints except signup/login require `Authorization: Bearer <jwt>`.

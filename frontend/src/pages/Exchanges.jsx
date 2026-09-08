@@ -5,16 +5,23 @@ import CycleChain from '../components/CycleChain';
 import { useAuth } from '../context/AuthContext';
 
 const STARS = [1, 2, 3, 4, 5];
-const RATED_KEY = 'kc_rated';
+
+// Rated flags are per-user: two accounts sharing a browser must not see
+// each other's "Rated ✓" state.
+const ratedKeyFor = (userId) => `kc_rated:${userId ?? 'anon'}`;
 
 // Matches the backend rule (ratingService.canRateEachOther): you may only
-// rate someone you directly taught or learned from in this exchange.
-const canRate = (a, b) =>
-  a.learnsSkillId === b.teachesSkillId || a.teachesSkillId === b.learnsSkillId;
+// rate the participant who teaches what you learn, or learns what you teach.
+const canRate = (me, other, participants) => {
+  if (!me || !other || me.userId === other.userId) return false;
+  const myTeacher = participants.find((p) => p.teachesSkillId === me.learnsSkillId);
+  const myLearner = participants.find((p) => p.learnsSkillId === me.teachesSkillId);
+  return myTeacher?.userId === other.userId || myLearner?.userId === other.userId;
+};
 
-function loadRated() {
+function loadRated(userId) {
   try {
-    return new Set(JSON.parse(localStorage.getItem(RATED_KEY)) || []);
+    return new Set(JSON.parse(localStorage.getItem(ratedKeyFor(userId))) || []);
   } catch {
     return new Set();
   }
@@ -26,17 +33,26 @@ export default function Exchanges() {
   const { user } = useAuth();
   const [exchanges, setExchanges] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [hasMore, setHasMore] = useState(false);
-  const [rated, setRated] = useState(loadRated);
+  const [actionError, setActionError] = useState('');
+  const [completingId, setCompletingId] = useState(null);
+  const [rated, setRated] = useState(() => loadRated(user?.id));
   const [ratings, setRatings] = useState({}); // `${cycleId}:${rateeId}` -> { score, comment }
+
+  // Reload per-user rated flags when the account changes.
+  useEffect(() => {
+    setRated(loadRated(user?.id));
+  }, [user?.id]);
 
   const persistRated = (next) => {
     setRated(next);
-    localStorage.setItem(RATED_KEY, JSON.stringify([...next]));
+    localStorage.setItem(ratedKeyFor(user?.id), JSON.stringify([...next]));
   };
 
-  const load = (offset = 0, append = false) =>
-    api
+  const load = (offset = 0, append = false) => {
+    setLoadError('');
+    return api
       .get(`/match/exchanges?limit=${PAGE_SIZE}&offset=${offset}`)
       .then(({ data }) => {
         setExchanges((prev) => {
@@ -45,7 +61,9 @@ export default function Exchanges() {
         });
         setHasMore(data.exchanges.length === PAGE_SIZE);
       })
+      .catch(() => setLoadError('Could not load exchanges. Check your connection and retry.'))
       .finally(() => setLoaded(true));
+  };
 
   useEffect(() => {
     load();
@@ -54,20 +72,30 @@ export default function Exchanges() {
   const loadMore = () => load(exchanges.length, true);
 
   const complete = async (cycleId) => {
-    await api.post(`/cycles/${cycleId}/complete`);
-    load();
+    setActionError('');
+    setCompletingId(cycleId);
+    try {
+      await api.post(`/cycles/${cycleId}/complete`);
+      await load();
+    } catch (err) {
+      setActionError(err.response?.data?.error || 'Could not mark the session complete.');
+    } finally {
+      setCompletingId(null);
+    }
   };
 
   const submitRating = async (cycleId, rateeId) => {
     const key = `${cycleId}:${rateeId}`;
     const { score, comment } = ratings[key] || {};
     if (!score) return;
+    setActionError('');
     try {
       await api.post('/ratings', { cycleId, rateeId, score, comment });
       persistRated(new Set(rated).add(key));
     } catch (err) {
       // already rated this cycle → treat as done
       if (err.response?.status === 409) persistRated(new Set(rated).add(key));
+      else setActionError(err.response?.data?.error || 'Could not submit the rating.');
     }
   };
 
@@ -76,6 +104,21 @@ export default function Exchanges() {
 
   if (!loaded) {
     return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-indigo-200">Loading…</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
+        <h1 className="text-2xl font-bold text-white">My Exchanges</h1>
+        <p className="text-rose-300">{loadError}</p>
+        <button
+          onClick={() => { setLoaded(false); load(); }}
+          className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white font-semibold hover:opacity-90 cursor-pointer"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   if (exchanges.length === 0) {
@@ -92,13 +135,17 @@ export default function Exchanges() {
     <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
       <h1 className="text-2xl font-bold text-white">My Exchanges</h1>
 
+      {actionError && (
+        <p className="text-sm text-rose-300 bg-rose-500/10 border border-rose-400/30 rounded-lg px-3 py-2">{actionError}</p>
+      )}
+
       {exchanges.map((exchange) => {
         const done = exchange.status === 'completed';
-        const me = exchange.participants.find((p) => p.userId === user.id);
-        const others = exchange.participants.filter((p) => p.userId !== user.id);
-        const rateable = others.filter((p) => canRate(me, p));
+        const me = exchange.participants.find((p) => p.userId === user?.id);
+        const others = exchange.participants.filter((p) => p.userId !== user?.id);
+        const rateable = me ? others.filter((p) => canRate(me, p, exchange.participants)) : [];
         const awaiting = exchange.participants.filter((p) => !p.completedAt);
-        const awaitingNames = awaiting.map((a) => (a.userId === user.id ? 'You' : a.user.name));
+        const awaitingNames = awaiting.map((a) => (a.userId === user?.id ? 'You' : a.user.name));
 
         return (
           <div key={exchange.id} className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
@@ -116,9 +163,10 @@ export default function Exchanges() {
                 ) : (
                   <button
                     onClick={() => complete(exchange.id)}
-                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white text-xs font-semibold hover:opacity-90 cursor-pointer"
+                    disabled={completingId === exchange.id}
+                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer"
                   >
-                    Mark session complete
+                    {completingId === exchange.id ? 'Saving…' : 'Mark session complete'}
                   </button>
                 )}
                 <Link
@@ -130,7 +178,16 @@ export default function Exchanges() {
               </div>
             </div>
 
-            <CycleChain participants={exchange.participants} myUserId={user.id} />
+            <CycleChain participants={exchange.participants} myUserId={user?.id} />
+
+            {/* Who is still pending — shown for confirmed cycles too */}
+            {!done && awaiting.length > 0 && (
+              <p className="text-indigo-300/70 text-xs">
+                {awaitingNames.length === 1 && awaitingNames[0] === 'You'
+                  ? 'You have not marked your session complete yet.'
+                  : `${awaitingNames.join(', ')} ${awaitingNames.length === 1 ? 'has' : 'have'} not finished yet.`}
+              </p>
+            )}
 
             {/* Completion status per participant */}
             <div className="flex flex-wrap gap-2 text-xs">
@@ -143,7 +200,7 @@ export default function Exchanges() {
                       : 'bg-white/5 border-white/10 text-indigo-300'
                   }`}
                 >
-                  {p.userId === user.id ? 'You' : p.user.name}: {p.completedAt ? '✓ done' : 'pending'}
+                  {p.userId === user?.id ? 'You' : p.user.name}: {p.completedAt ? '✓ done' : 'pending'}
                 </span>
               ))}
             </div>
@@ -219,13 +276,6 @@ export default function Exchanges() {
                     </div>
                   );
                 })}
-                {awaiting.length > 0 && (
-                  <p className="text-indigo-300/70 text-xs">
-                    {awaitingNames.length === 1 && awaitingNames[0] === 'You'
-                      ? 'You have not finished yet.'
-                      : `${awaitingNames.join(', ')} ${awaitingNames.length === 1 ? 'has' : 'have'} not finished yet.`}
-                  </p>
-                )}
               </div>
             )}
           </div>

@@ -15,7 +15,8 @@ const cycleInclude = {
 
 /**
  * POST /api/match/run — trigger the matching engine.
- * Exposed for demos/viva; the frontend never calls this directly.
+ * The Dashboard "Run matching now" button calls this; it is rate-limited
+ * at the route level because each run re-proposes cycles + notifies users.
  */
 async function runMatch(req, res, next) {
   try {
@@ -51,6 +52,7 @@ async function getMyStatus(req, res, next) {
       },
     });
 
+    if (!user) return res.status(401).json({ error: 'User no longer exists' });
     if (user.offered.length === 0 && user.wanted.length === 0) {
       return res.json({ status: 'no-profile' });
     }
@@ -124,6 +126,13 @@ async function acceptCycle(req, res, next) {
       return res.status(403).json({ error: 'You are not part of this cycle' });
     }
 
+    // Idempotent: already accepted -> return current state without
+    // re-notifying the other participants.
+    const mine = cycle.participants.find((p) => p.userId === req.userId);
+    if (mine.accepted === true) {
+      return res.json({ cycle: await getCycleFor(cycleId) });
+    }
+
     await prisma.matchCycleParticipant.update({
       where: { cycleId_userId: { cycleId, userId: req.userId } },
       data: { accepted: true },
@@ -146,10 +155,11 @@ async function acceptCycle(req, res, next) {
       await notifyMany(
         updated.participants.map((p) => p.userId),
         'match_accepted',
-        'Everyone accepted the exchange — it is now confirmed.'
+        'Everyone accepted the exchange — it is now confirmed.',
+        `/match/${cycleId}`
       );
     } else {
-      await notifyMany(others, 'match_accepted', `${my.user.name} accepted the exchange.`);
+      await notifyMany(others, 'match_accepted', `${my.user.name} accepted the exchange.`, `/match/${cycleId}`);
     }
 
     res.json({ cycle: await getCycleFor(cycleId) });
@@ -189,9 +199,13 @@ async function rejectCycle(req, res, next) {
       teacher = fallback;
     }
 
+    // Upsert: rejecting a second cycle that shares the same directed edge
+    // must not blow up on the unique constraint (or the cycle gets stuck).
     await prisma.$transaction([
-      prisma.blockedEdge.create({
-        data: { fromUserId: req.userId, toUserId: teacher.userId },
+      prisma.blockedEdge.upsert({
+        where: { fromUserId_toUserId: { fromUserId: req.userId, toUserId: teacher.userId } },
+        update: {},
+        create: { fromUserId: req.userId, toUserId: teacher.userId },
       }),
       prisma.matchCycle.update({
         where: { id: cycleId },
@@ -203,7 +217,8 @@ async function rejectCycle(req, res, next) {
     await notifyMany(
       cycle.participants.filter((p) => p.userId !== req.userId).map((p) => p.userId),
       'match_rejected',
-      `${my.user.name} rejected the exchange proposal.`
+      `${my.user.name} rejected the exchange proposal.`,
+      `/match/${cycleId}`
     );
 
     // Everyone else in the cycle is now free again — re-run matching.
@@ -255,6 +270,13 @@ async function completeExchange(req, res, next) {
       return res.status(403).json({ error: 'You are not part of this cycle' });
     }
 
+    // Idempotent: already marked done -> return current state without
+    // re-firing notifications or re-running matching.
+    const mine = cycle.participants.find((p) => p.userId === req.userId);
+    if (mine.completedAt) {
+      return res.json({ cycle: await getCycleFor(cycleId) });
+    }
+
     await prisma.matchCycleParticipant.update({
       where: { cycleId_userId: { cycleId, userId: req.userId } },
       data: { completedAt: new Date() },
@@ -266,18 +288,24 @@ async function completeExchange(req, res, next) {
     });
 
     if (updated.participants.every((p) => p.completedAt)) {
-      await prisma.matchCycle.update({
-        where: { id: cycleId },
+      // Atomic transition: only the request that flips the status away from
+      // 'confirmed' notifies + re-runs matching (concurrent last-completes
+      // can't double-fire).
+      const transitioned = await prisma.matchCycle.updateMany({
+        where: { id: cycleId, status: 'confirmed' },
         data: { status: 'completed', completedAt: new Date() },
       });
-      await notifyMany(
-        updated.participants.map((p) => p.userId),
-        'session_completed',
-        'All participants completed this exchange — it is now marked complete.'
-      );
-      // Everyone in the cycle is free again — re-run matching so they can
-      // be proposed new cycles immediately (same as rejectCycle does).
-      await runMatching();
+      if (transitioned.count === 1) {
+        await notifyMany(
+          updated.participants.map((p) => p.userId),
+          'session_completed',
+          'All participants completed this exchange — it is now marked complete.',
+          `/match/${cycleId}`
+        );
+        // Everyone in the cycle is free again — re-run matching so they can
+        // be proposed new cycles immediately (same as rejectCycle does).
+        await runMatching();
+      }
     }
 
     res.json({ cycle: await getCycleFor(cycleId) });
@@ -361,6 +389,7 @@ async function getCycleFor(cycleId) {
     where: { id: cycleId },
     include: cycleInclude,
   });
+  if (!cycle) return null;
   return enrichCycle(cycle);
 }
 
@@ -374,12 +403,13 @@ async function getCycleFor(cycleId) {
  *    aggregates in cycleInclude) into avgRating / ratingCount.
  */
 async function enrichCycles(cycles) {
-  if (cycles.length === 0) return [];
+  const present = (cycles || []).filter(Boolean);
+  if (present.length === 0) return [];
 
-  const participantRows = cycles.flatMap((c) => c.participants);
+  const participantRows = present.flatMap((c) => c.participants);
   const hasRows = participantRows.length > 0;
 
-  const [offeredLevels, wantedLevels, aggRows] = await Promise.all([
+  const [offeredLevels, wantedLevels, aggRows, verifiedRows] = await Promise.all([
     hasRows
       ? prisma.userOfferedSkill.findMany({
           where: { OR: participantRows.map((p) => ({ userId: p.userId, skillId: p.teachesSkillId })) },
@@ -398,6 +428,15 @@ async function enrichCycles(cycles) {
           _count: { _all: true },
         })
       : [],
+    hasRows
+      ? prisma.skillVerification.findMany({
+          where: {
+            userId: { in: participantRows.map((p) => p.userId) },
+            status: 'approved',
+          },
+          select: { userId: true, skillId: true, claimedLevel: true },
+        })
+      : [],
   ]);
 
   const levelOf = (rows, userId, skillId) =>
@@ -405,8 +444,13 @@ async function enrichCycles(cycles) {
   const aggByUser = new Map(
     aggRows.map((r) => [r.rateeId, { avgRating: r._avg.score, ratingCount: r._count._all }])
   );
+  const verifiedByUser = new Map();
+  for (const v of verifiedRows) {
+    if (!verifiedByUser.has(v.userId)) verifiedByUser.set(v.userId, []);
+    verifiedByUser.get(v.userId).push({ skillId: v.skillId, level: v.claimedLevel });
+  }
 
-  return cycles.map((cycle) => {
+  return present.map((cycle) => {
     const participants = cycle.participants.map((p) => {
       const agg = aggByUser.get(p.userId);
       return {
@@ -420,6 +464,7 @@ async function enrichCycles(cycles) {
           department: p.user.department,
           avgRating: agg?.avgRating ?? null,
           ratingCount: agg?.ratingCount ?? 0,
+          verifiedLevels: verifiedByUser.get(p.userId) ?? [],
         },
       };
     });

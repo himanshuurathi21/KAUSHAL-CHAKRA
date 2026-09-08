@@ -43,17 +43,19 @@ export default function Admin() {
     );
   }
 
-  const { totalUsers, totalConfirmedCycles, waitingUsers, cycleSizeBreakdown, comparison } = stats;
+  const { totalUsers, totalConfirmedCycles, waitingUsers, cycleSizeBreakdown, comparison } = stats || {};
+  const safeComparison = comparison || {};
+  const safeBreakdown = cycleSizeBreakdown || {};
 
   const sizeData = [2, 3, 4, 5].map((size) => ({
     name: `${size}-way`,
-    count: cycleSizeBreakdown[size] ?? 0,
+    count: safeBreakdown[size] ?? 0,
     color: SIZE_COLORS[size],
   }));
 
   const compareData = [
-    { name: 'Cyclic engine', users: comparison.matchedByCyclicEngine, fill: '#818cf8' },
-    { name: 'Direct swap only', users: comparison.matchedByDirectSwapOnly, fill: '#38bdf8' },
+    { name: 'Cyclic engine', users: safeComparison.matchedByCyclicEngine ?? 0, fill: '#818cf8' },
+    { name: 'Direct swap only', users: safeComparison.matchedByDirectSwapOnly ?? 0, fill: '#38bdf8' },
   ];
 
   const Card = ({ label, value, sub }) => (
@@ -73,14 +75,14 @@ export default function Admin() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card label="Total users" value={totalUsers} />
         <Card label="Confirmed exchanges" value={totalConfirmedCycles} />
         <Card label="Waiting for a match" value={waitingUsers ?? '—'} sub="users with skills but no active cycle" />
         <Card
           label="Matched only via cycles"
-          value={`${comparison.pctWouldNotMatchWithoutCycles}%`}
-          sub={`${comparison.matchedOnlyViaCycles} of ${comparison.matchedByCyclicEngine} users would not match with direct 1-to-1 swaps only`}
+          value={`${safeComparison.pctWouldNotMatchWithoutCycles ?? '—'}%`}
+          sub={`${safeComparison.matchedOnlyViaCycles ?? '—'} of ${safeComparison.matchedByCyclicEngine ?? '—'} users would not match with direct 1-to-1 swaps only`}
         />
       </div>
 
@@ -124,7 +126,7 @@ export default function Admin() {
         </ResponsiveContainer>
         <p className="text-indigo-300/70 text-xs">
           The cyclic engine unlocks skill exchanges that would never happen through simple 1-to-1
-          matching — currently {comparison.pctWouldNotMatchWithoutCycles}% of matched users.
+          matching — currently {safeComparison.pctWouldNotMatchWithoutCycles ?? '—'}% of matched users.
         </p>
       </div>
     </div>

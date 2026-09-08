@@ -23,25 +23,37 @@ async function requireAuth(req, res, next) {
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: 'Authentication required' });
 
+  let payload;
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    payload = jwt.verify(token, JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+
+  // DB failures here are server errors (500 via next), not auth failures.
+  try {
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user) return res.status(401).json({ error: 'User no longer exists' });
     req.userId = user.id;
     next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+  } catch (err) {
+    next(err);
   }
 }
 
 /** Runs after requireAuth; rejects non-admin users with 403. */
 async function requireAdmin(req, res, next) {
-  const user = await prisma.user.findUnique({
-    where: { id: req.userId },
-    select: { isAdmin: true },
-  });
-  if (!user?.isAdmin) return res.status(403).json({ error: 'Admin access required' });
-  next();
+  try {
+    if (!req.userId) return res.status(401).json({ error: 'Authentication required' });
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: { isAdmin: true },
+    });
+    if (!user?.isAdmin) return res.status(403).json({ error: 'Admin access required' });
+    next();
+  } catch (err) {
+    next(err);
+  }
 }
 
 module.exports = { signToken, requireAuth, requireAdmin };

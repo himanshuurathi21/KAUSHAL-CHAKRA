@@ -145,7 +145,8 @@ async function main() {
     await prisma.rating.deleteMany();
     await prisma.credit.deleteMany();
     await prisma.creditSession.deleteMany();
-    console.log('Cleared previous matches, messages, notifications, ratings and credits.');
+    await prisma.skillVerification.deleteMany();
+    console.log('Cleared previous matches, messages, notifications, ratings, credits and verifications.');
   } else {
     console.log('Database already in use — kept existing matches/progress (set SEED_FRESH=1 to wipe).');
   }

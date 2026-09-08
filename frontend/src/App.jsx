@@ -8,6 +8,7 @@ import MatchReview from './pages/MatchReview';
 import Exchanges from './pages/Exchanges';
 import Admin from './pages/Admin';
 import Credits from './pages/Credits';
+import Verify from './pages/Verify';
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="/match/:id" element={<Protected><MatchReview /></Protected>} />
               <Route path="/exchanges" element={<Protected><Exchanges /></Protected>} />
               <Route path="/credits" element={<Protected><Credits /></Protected>} />
+              <Route path="/verify" element={<Protected><Verify /></Protected>} />
               <Route path="/admin" element={<AdminOnly><Admin /></AdminOnly>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

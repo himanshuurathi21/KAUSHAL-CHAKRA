@@ -20,6 +20,19 @@ function canRedeem(balance) {
 }
 
 /**
+ * Serialize all credit mutations for one user with a Postgres advisory lock.
+ * Must be called inside an interactive transaction: the lock is held until
+ * the transaction commits/rolls back, which closes the check-then-act races
+ * (double redeem, double teach booking, double mint).
+ */
+async function withCreditLock(tx, userId) {
+  // Single 64-bit key: namespace (727272) in the high bits, user id below.
+  // (Two-arg pg_advisory_xact_lock needs explicit bigint casts for JS numbers.)
+  const key = BigInt(727272) * 4294967296n + BigInt(userId);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${key})`;
+}
+
+/**
  * Pick the best available partner for a one-sided session:
  *   role 'teacher' -> a user who OFFERS the skill (they will teach it)
  *   role 'learner' -> a user who WANTS the skill (they will learn it)
@@ -28,19 +41,22 @@ function canRedeem(balance) {
  * (proposed/active) credit session, and the caller themselves are excluded.
  * Returns the first available user id or null.
  */
-async function findAvailablePartner(role, skillId, excludeUserId) {
+async function findAvailablePartner(role, skillId, excludeUserId, db = prisma) {
   const wantsOrOffers = role === 'teacher' ? 'wanted' : 'offered';
-  const candidates = await prisma.user.findMany({
+  const candidates = await db.user.findMany({
     where: { [wantsOrOffers]: { some: { skillId } } },
     select: { id: true },
+    orderBy: { id: 'asc' },
   });
 
   const [activeRows, creditSessions] = await Promise.all([
-    prisma.matchCycleParticipant.findMany({
+    db.matchCycleParticipant.findMany({
       where: { cycle: { status: { in: ['proposed', 'confirmed'] } } },
       select: { userId: true },
     }),
-    prisma.creditSession.findMany({
+    // Only open sessions block a user — filter in the DB, not in memory.
+    db.creditSession.findMany({
+      where: { status: { in: ['proposed', 'active'] } },
       select: { teacherId: true, learnerId: true, status: true },
     }),
   ]);
@@ -97,8 +113,8 @@ function refundEntryFor(session) {
 }
 
 /** True when the caller has an open proposed/confirmed cycle (is "matched"). */
-async function hasActiveCycle(userId) {
-  const participant = await prisma.matchCycleParticipant.findFirst({
+async function hasActiveCycle(userId, db = prisma) {
+  const participant = await db.matchCycleParticipant.findFirst({
     where: { userId, cycle: { status: { in: ['proposed', 'confirmed'] } } },
     select: { id: true },
   });
@@ -110,8 +126,8 @@ async function hasActiveCycle(userId) {
  * session (as teacher or learner) — prevents double-booking the
  * initiator while they are also waiting on someone else's session.
  */
-async function hasOpenCreditSession(userId) {
-  const session = await prisma.creditSession.findFirst({
+async function hasOpenCreditSession(userId, db = prisma) {
+  const session = await db.creditSession.findFirst({
     where: {
       OR: [{ teacherId: userId }, { learnerId: userId }],
       status: { in: ['proposed', 'active'] },
@@ -131,6 +147,7 @@ function hasWaitedLongEnough(user, minWaitDays) {
 module.exports = {
   computeBalance,
   canRedeem,
+  withCreditLock,
   findAvailablePartner,
   computeBusySet,
   invitedPartnerId,

@@ -1,5 +1,6 @@
 const { Router } = require('express');
-const { requireAuth } = require('../middleware/auth');
+const rateLimit = require('express-rate-limit');
+const { requireAuth, requireAdmin } = require('../middleware/auth');
 const {
   runMatch,
   getMyStatus,
@@ -14,11 +15,22 @@ const { sendMessage, getMessages } = require('../controllers/chatController');
 
 const router = Router();
 
-// Debug/viva endpoint: raw adjacency list of the current graph
-router.get('/debug/graph', requireAuth, debugGraph);
+// Debug/viva endpoint: raw adjacency list of the current graph.
+// Admin-only: it discloses every user's name and skill graph.
+router.get('/debug/graph', requireAuth, requireAdmin, debugGraph);
+
+// Matching triggers re-propose cycles + notify every user, so the manual
+// trigger is rate-limited per IP (the Dashboard button calls this).
+const matchRunLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many matching requests — please wait a minute and try again.' },
+});
 
 // All matching routes are behind auth
-router.post('/match/run', requireAuth, runMatch);
+router.post('/match/run', requireAuth, matchRunLimiter, runMatch);
 router.get('/match/status', requireAuth, getMyStatus);
 router.get('/match/cycle/:id', requireAuth, getCycle);
 router.post('/match/cycle/:id/accept', requireAuth, acceptCycle);

@@ -1,8 +1,8 @@
 const prisma = require('../lib/prisma');
 const { notify } = require('../services/notificationService');
 const {
-  computeBalance,
   canRedeem,
+  withCreditLock,
   findAvailablePartner,
   invitedPartnerId,
   canTransition,
@@ -13,6 +13,17 @@ const {
 } = require('../services/creditService');
 
 const MIN_WAIT_DAYS = Number(process.env.CREDIT_MIN_WAIT_DAYS || 0);
+
+/** Reject non-integer / non-positive skill ids with 400 (not a Prisma 500). */
+function parseSkillId(raw) {
+  const id = Number(raw);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/** Abort a locked transaction with an HTTP-status-carrying error. */
+function fail(status, message) {
+  throw Object.assign(new Error(message), { status });
+}
 
 const sessionInclude = {
   teacher: { select: { id: true, name: true } },
@@ -50,8 +61,8 @@ async function getMyCredits(req, res, next) {
 /** POST /api/credits/teach — unmatched user teaches now, earns a credit on completion. */
 async function teachNow(req, res, next) {
   try {
-    const skillId = Number(req.body?.skillId);
-    if (!skillId) return res.status(400).json({ error: 'skillId is required' });
+    const skillId = parseSkillId(req.body?.skillId);
+    if (!skillId) return res.status(400).json({ error: 'A valid skillId is required' });
 
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
@@ -60,26 +71,36 @@ async function teachNow(req, res, next) {
     if (!user.offered.some((o) => o.skillId === skillId)) {
       return res.status(400).json({ error: 'You must offer this skill to teach it' });
     }
-    if (await hasActiveCycle(req.userId)) {
-      return res.status(400).json({ error: 'You are already in an active cycle — no credit session needed' });
-    }
-    if (await hasOpenCreditSession(req.userId)) {
-      return res.status(400).json({ error: 'You already have an open credit session — resolve it before starting another' });
-    }
     if (!hasWaitedLongEnough(user, MIN_WAIT_DAYS)) {
       return res.status(400).json({ error: `Credit teaching unlocks after ${MIN_WAIT_DAYS} day(s) without a match` });
     }
 
-    const learnerId = await findAvailablePartner('teacher', skillId, req.userId);
-    if (!learnerId) {
-      return res.status(404).json({ error: 'No one currently wants this skill — try another skill' });
+    // Check + create run inside one locked transaction so two concurrent
+    // teach requests can't double-book the same teacher.
+    let session;
+    try {
+      session = await prisma.$transaction(async (tx) => {
+        await withCreditLock(tx, req.userId);
+        if (await hasActiveCycle(req.userId, tx)) {
+          fail(400, 'You are already in an active cycle — no credit session needed');
+        }
+        if (await hasOpenCreditSession(req.userId, tx)) {
+          fail(400, 'You already have an open credit session — resolve it before starting another');
+        }
+        const learnerId = await findAvailablePartner('teacher', skillId, req.userId, tx);
+        if (!learnerId) {
+          fail(404, 'No one currently wants this skill — try another skill');
+        }
+        return tx.creditSession.create({
+          data: { teacherId: req.userId, learnerId, skillId, createdBy: 'teacher' },
+          include: sessionInclude,
+        });
+      });
+    } catch (err) {
+      if (err?.status) return res.status(err.status).json({ error: err.message });
+      throw err;
     }
-
-    const session = await prisma.creditSession.create({
-      data: { teacherId: req.userId, learnerId, skillId, createdBy: 'teacher' },
-      include: sessionInclude,
-    });
-    await notify(learnerId, 'credit_session', `A teacher wants to teach you ${session.skill.name} — accept the session in Credits.`);
+    await notify(session.learnerId, 'credit_session', `A teacher wants to teach you ${session.skill.name} — accept the session in Credits.`, '/credits');
 
     res.status(201).json({ session });
   } catch (err) {
@@ -90,8 +111,8 @@ async function teachNow(req, res, next) {
 /** POST /api/credits/redeem — spend a credit to be taught a wanted skill now. */
 async function redeem(req, res, next) {
   try {
-    const skillId = Number(req.body?.skillId);
-    if (!skillId) return res.status(400).json({ error: 'skillId is required' });
+    const skillId = parseSkillId(req.body?.skillId);
+    if (!skillId) return res.status(400).json({ error: 'A valid skillId is required' });
 
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
@@ -100,36 +121,46 @@ async function redeem(req, res, next) {
     if (!user.wanted.some((w) => w.skillId === skillId)) {
       return res.status(400).json({ error: 'You must want this skill to redeem a credit for it' });
     }
-    if (await hasActiveCycle(req.userId)) {
-      return res.status(400).json({ error: 'You are already in an active cycle — no need to redeem' });
-    }
-    if (await hasOpenCreditSession(req.userId)) {
-      return res.status(400).json({ error: 'You already have an open credit session — resolve it before redeeming another' });
-    }
 
-    const balance = await currentBalance(req.userId);
-    if (!canRedeem(balance)) {
-      return res.status(400).json({ error: 'You need at least 1 credit to redeem a lesson' });
-    }
-
-    const teacherId = await findAvailablePartner('learner', skillId, req.userId);
-    if (!teacherId) {
-      return res.status(404).json({ error: 'No one currently teaches this skill — try another skill' });
-    }
-
-    const session = await prisma.$transaction(async (tx) => {
-      const created = await tx.creditSession.create({
-        data: { teacherId, learnerId: req.userId, skillId, createdBy: 'learner' },
-        include: sessionInclude,
+    // Balance check + reservation happen inside one locked transaction:
+    // two concurrent redeems on a balance of 1 can't both succeed.
+    let session;
+    try {
+      session = await prisma.$transaction(async (tx) => {
+        await withCreditLock(tx, req.userId);
+        if (await hasActiveCycle(req.userId, tx)) {
+          fail(400, 'You are already in an active cycle — no need to redeem');
+        }
+        if (await hasOpenCreditSession(req.userId, tx)) {
+          fail(400, 'You already have an open credit session — resolve it before redeeming another');
+        }
+        const agg = await tx.credit.aggregate({
+          where: { userId: req.userId },
+          _sum: { delta: true },
+        });
+        if (!canRedeem(agg._sum.delta ?? 0)) {
+          fail(400, 'You need at least 1 credit to redeem a lesson');
+        }
+        const teacherId = await findAvailablePartner('learner', skillId, req.userId, tx);
+        if (!teacherId) {
+          fail(404, 'No one currently teaches this skill — try another skill');
+        }
+        const created = await tx.creditSession.create({
+          data: { teacherId, learnerId: req.userId, skillId, createdBy: 'learner' },
+          include: sessionInclude,
+        });
+        // The learner's credit is reserved when the request is made
+        await tx.credit.create({
+          data: { userId: req.userId, delta: -1, reason: 'redeem', sessionId: created.id },
+        });
+        return created;
       });
-      // The learner's credit is reserved when the request is made
-      await tx.credit.create({
-        data: { userId: req.userId, delta: -1, reason: 'redeem', sessionId: created.id },
-      });
-      return created;
-    });
+    } catch (err) {
+      if (err?.status) return res.status(err.status).json({ error: err.message });
+      throw err;
+    }
 
-    await notify(teacherId, 'credit_session', `${user.name} redeemed a credit to learn ${session.skill.name} from you.`);
+    await notify(session.teacherId, 'credit_session', `${user.name} redeemed a credit to learn ${session.skill.name} from you.`, '/credits');
 
     res.status(201).json({ session });
   } catch (err) {
@@ -150,7 +181,7 @@ async function acceptSession(req, res, next) {
       include: sessionInclude,
     });
 
-    await notifyInitiator(session, `${responderName(session)} accepted your credit session on ${session.skill.name}.`);
+    await notifyInitiator(session, `${responderName(session)} accepted your credit session on ${session.skill.name}.`, '/credits');
 
     res.json({ session: updated });
   } catch (err) {
@@ -177,7 +208,7 @@ async function declineSession(req, res, next) {
       if (refund) await tx.credit.create({ data: refund });
     });
 
-    await notifyInitiator(session, `${responderName(session)} declined your credit session on ${session.skill.name}.`);
+    await notifyInitiator(session, `${responderName(session)} declined your credit session on ${session.skill.name}.`, '/credits');
 
     res.json({ ok: true });
   } catch (err) {
@@ -185,7 +216,7 @@ async function declineSession(req, res, next) {
   }
 }
 
-/** POST /api/credits/sessions/:id/complete — finish a one-off session, settle the ledger. */
+/** POST /api/credits/sessions/:id/complete — mark MY side done, settle when both sides agree. */
 async function completeSession(req, res, next) {
   try {
     const sessionId = Number(req.params.id);
@@ -202,22 +233,33 @@ async function completeSession(req, res, next) {
       return res.status(400).json({ error: 'Only active sessions can be completed' });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.creditSession.update({
-        where: { id: session.id },
-        data: { status: 'completed', completedAt: new Date() },
-      });
-      // The teacher earns their credit once the lesson is delivered
-      await tx.credit.create({
-        data: { userId: session.teacherId, delta: 1, reason: 'teach_now', sessionId: session.id },
-      });
+    const sideField = session.teacherId === req.userId ? 'teacherDoneAt' : 'learnerDoneAt';
+    if (session[sideField]) {
+      const current = await prisma.creditSession.findUnique({ where: { id: session.id }, include: sessionInclude });
+      return res.json({ session: current });
+    }
+    await prisma.creditSession.update({
+      where: { id: session.id },
+      data: { [sideField]: new Date() },
     });
 
-    await notify(
-      session.teacherId === req.userId ? session.learnerId : session.teacherId,
-      'credit_session',
-      `Your credit session on ${session.skill.name} is complete.`
-    );
+    // Settle only when BOTH sides marked done. The atomic flip guarantees a
+    // single +1 mint no matter how the two completions interleave.
+    const flipped = await prisma.creditSession.updateMany({
+      where: { id: session.id, status: 'active', teacherDoneAt: { not: null }, learnerDoneAt: { not: null } },
+      data: { status: 'completed', completedAt: new Date() },
+    });
+    if (flipped.count === 1) {
+      await prisma.credit.create({
+        data: { userId: session.teacherId, delta: 1, reason: 'teach_now', sessionId: session.id },
+      });
+      await notify(
+        session.teacherId === req.userId ? session.learnerId : session.teacherId,
+        'credit_session',
+        `Your credit session on ${session.skill.name} is complete.`,
+        '/credits'
+      );
+    }
 
     const updated = await prisma.creditSession.findUnique({ where: { id: session.id }, include: sessionInclude });
     res.json({ session: updated });
@@ -254,15 +296,9 @@ function responderName(session) {
 }
 
 /** Notify the initiator (the user who created the session) about a response. */
-async function notifyInitiator(session, content) {
+async function notifyInitiator(session, content, link = '/credits') {
   const initiatorId = session.createdBy === 'teacher' ? session.teacherId : session.learnerId;
-  await notify(initiatorId, 'credit_session', content);
-}
-
-/** Sum of the user's ledger movements. */
-async function currentBalance(userId) {
-  const entries = await prisma.credit.findMany({ where: { userId }, select: { delta: true } });
-  return computeBalance(entries);
+  await notify(initiatorId, 'credit_session', content, link);
 }
 
 module.exports = { getMyCredits, teachNow, redeem, acceptSession, declineSession, completeSession };

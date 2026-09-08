@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const api = axios.create({ baseURL: '/api' });
+const api = axios.create({
+  // VITE_API_URL lets `vite preview` or static hosts point at the API
+  // directly; dev (proxy) and docker/prod (same origin) keep using /api.
+  baseURL: import.meta.env.VITE_API_URL || '/api',
+  timeout: 15000,
+});
 
 // Attach the JWT to every request
 api.interceptors.request.use((config) => {

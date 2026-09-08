@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Auth() {
@@ -7,8 +7,10 @@ export default function Auth() {
   const [form, setForm] = useState({ name: '', email: '', password: '', department: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const { login, signup } = useAuth();
+  const { user, login, signup } = useAuth();
   const navigate = useNavigate();
+
+  if (user) return <Navigate to="/" replace />;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -90,10 +92,11 @@ export default function Auth() {
             <input
               className={input}
               type="password"
-              placeholder="Password"
+              placeholder="Password (min 6 characters)"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               required
+              minLength={6}
             />
 
             {error && (

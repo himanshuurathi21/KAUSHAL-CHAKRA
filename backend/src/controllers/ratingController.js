@@ -7,21 +7,24 @@ async function createRating(req, res, next) {
     const { cycleId, rateeId, score, comment } = req.body || {};
     const raterId = req.userId;
 
-    if (!cycleId || !rateeId || !Number.isInteger(score)) {
-      return res.status(400).json({ error: 'cycleId, rateeId and score are required' });
+    // Normalize FIRST so "1" (string) can't slip past the self-rating check.
+    const cid = Number(cycleId);
+    const rid = Number(rateeId);
+    if (!Number.isInteger(cid) || cid <= 0 || !Number.isInteger(rid) || rid <= 0) {
+      return res.status(400).json({ error: 'cycleId and rateeId must be positive integers' });
+    }
+    if (!Number.isInteger(score)) {
+      return res.status(400).json({ error: 'score is required' });
     }
     if (score < 1 || score > 5) {
       return res.status(400).json({ error: 'Score must be between 1 and 5' });
     }
-    if (rateeId === raterId) {
+    if (rid === raterId) {
       return res.status(400).json({ error: 'You cannot rate yourself' });
-    }
-    if (!Number.isInteger(Number(cycleId)) || !Number.isInteger(Number(rateeId))) {
-      return res.status(400).json({ error: 'cycleId and rateeId must be numbers' });
     }
 
     const cycle = await prisma.matchCycle.findUnique({
-      where: { id: Number(cycleId) },
+      where: { id: cid },
       include: { participants: true },
     });
     if (!cycle) return res.status(404).json({ error: 'Cycle not found' });
@@ -30,28 +33,37 @@ async function createRating(req, res, next) {
     }
 
     const raterParticipant = cycle.participants.find((p) => p.userId === raterId);
-    const rateeParticipant = cycle.participants.find((p) => p.userId === Number(rateeId));
+    const rateeParticipant = cycle.participants.find((p) => p.userId === rid);
     if (!raterParticipant || !rateeParticipant) {
       return res.status(403).json({ error: 'Both users must be participants in this cycle' });
     }
-    if (!canRateEachOther(cycle.participants, raterId, Number(rateeId))) {
+    if (!canRateEachOther(cycle.participants, raterId, rid)) {
       return res.status(403).json({ error: 'You can only rate someone you directly taught or learned from in this exchange' });
     }
 
     const existing = await prisma.rating.findUnique({
-      where: { cycleId_raterId_rateeId: { cycleId: cycle.id, raterId, rateeId: Number(rateeId) } },
+      where: { cycleId_raterId_rateeId: { cycleId: cycle.id, raterId, rateeId: rid } },
     });
     if (existing) return res.status(409).json({ error: 'You already rated this user for this cycle' });
 
-    const rating = await prisma.rating.create({
-      data: {
-        cycleId: cycle.id,
-        raterId,
-        rateeId: Number(rateeId),
-        score,
-        comment: comment || null,
-      },
-    });
+    let rating;
+    try {
+      rating = await prisma.rating.create({
+        data: {
+          cycleId: cycle.id,
+          raterId,
+          rateeId: rid,
+          score,
+          comment: comment || null,
+        },
+      });
+    } catch (err) {
+      // Lost the race with another identical request -> report conflict, not 500.
+      if (err?.code === 'P2002') {
+        return res.status(409).json({ error: 'You already rated this user for this cycle' });
+      }
+      throw err;
+    }
     res.status(201).json({ rating });
   } catch (err) {
     next(err);
