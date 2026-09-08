@@ -64,21 +64,31 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 const path = require('path');
 const fs = require('fs');
 const distPath = path.join(__dirname, '../../frontend/dist');
-if (fs.existsSync(distPath)) {
+const distIndex = path.join(distPath, 'index.html');
+if (fs.existsSync(distIndex)) {
   app.use(express.static(distPath));
   // SPA fallback — client-side routes (/match/:id, /exchanges, ...) reload
   // cleanly; /api requests keep going to the API above.
-  app.get(/^(?!\/api).*/, (_req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
+  app.get(/^(?!\/api).*/, (_req, res, next) => {
+    res.sendFile(distIndex, (err) => {
+      if (err) next(err);
+    });
   });
   console.log('Serving built frontend from frontend/dist');
+} else {
+  // API-only mode (local dev without `npm run build` in frontend/).
+  // Visible in deploy logs so a missing build is obvious, not silent.
+  console.warn(`WARNING: frontend build not found at ${distIndex} — serving API only.`);
 }
 
-// Central error handler — keeps error responses consistent
+// Central error handler — keeps error responses consistent.
+// Honors err.status (e.g. sendFile misses are 404) instead of masking
+// every failure as a 500.
 app.use((err, _req, res, _next) => {
   console.error(err);
+  const status = err?.status || 500;
   const isDev = process.env.NODE_ENV !== 'production';
-  res.status(500).json({ error: 'Internal server error', ...(isDev && { detail: err.message }) });
+  res.status(status).json({ error: status === 500 ? 'Internal server error' : err.message, ...(isDev && { detail: err.message }) });
 });
 
 const PORT = process.env.PORT || 4000;
