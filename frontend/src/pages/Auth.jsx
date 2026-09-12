@@ -37,12 +37,12 @@ export default function Auth() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="kc-seal w-16 h-16 mx-auto mb-4 text-maroon text-2xl font-black">
-            क
+            K
           </div>
           <h1 className="kc-display text-4xl font-bold text-ink">
             KaushalChakra
           </h1>
-          <p className="text-muted mt-1 text-sm tracking-wide">कौशलचक्र · trade skills, not money</p>
+          <p className="text-muted mt-1 text-sm tracking-wide">Trade skills, not money</p>
           <p className="text-muted mt-2 text-sm">
             Get matched in fair multi-person cycles.
           </p>
