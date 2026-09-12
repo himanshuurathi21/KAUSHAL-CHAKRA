@@ -2,9 +2,17 @@ import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+function genCaptcha() {
+  const a = Math.floor(Math.random() * 8) + 2;
+  const b = Math.floor(Math.random() * 8) + 2;
+  return { q: `${a} + ${b} = ?`, a: a + b };
+}
+
 export default function Auth() {
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({ name: '', email: '', password: '', department: '', consent: false });
+  const [captcha, setCaptcha] = useState(() => genCaptcha());
+  const [captchaInput, setCaptchaInput] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const { user, loading, login, signup } = useAuth();
@@ -17,6 +25,12 @@ export default function Auth() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (Number(captchaInput) !== captcha.a) {
+      setError('Incorrect CAPTCHA answer. Try again.');
+      setCaptcha(genCaptcha());
+      setCaptchaInput('');
+      return;
+    }
     setError('');
     setBusy(true);
     try {
@@ -25,6 +39,8 @@ export default function Auth() {
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || 'Something went wrong');
+      setCaptcha(genCaptcha());
+      setCaptchaInput('');
     } finally {
       setBusy(false);
     }
@@ -124,7 +140,7 @@ export default function Auth() {
             <p className="text-muted text-xs">Get matched in fair multi-person cycles.</p>
           </div>
 
-          <div className="kc-card p-7 sm:p-8 lg:p-8 shadow-sm min-h-[560px] flex flex-col">
+          <div className={`kc-card p-7 sm:p-8 lg:p-8 shadow-sm flex flex-col ${mode === 'signup' ? 'min-h-[640px]' : 'min-h-[480px]'}`}>
             <div className="mb-7 pt-1">
               <h2 className="kc-display text-[22px] font-bold text-ink">
                 {mode === 'login' ? 'Welcome back' : 'Create account'}
@@ -141,6 +157,8 @@ export default function Auth() {
                   onClick={() => {
                     setMode(m);
                     setError('');
+                    setCaptcha(genCaptcha());
+                    setCaptchaInput('');
                   }}
                   className={`py-2.5 rounded-md text-sm font-semibold capitalize transition-colors cursor-pointer ${
                     mode === m ? 'bg-maroon text-white shadow-sm' : 'text-muted hover:text-ink'
@@ -205,6 +223,32 @@ export default function Auth() {
                   </span>
                 </label>
               )}
+
+              {/* CAPTCHA */}
+              <div className="bg-parchment/60 border border-line rounded-lg p-3 flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-muted">CAPTCHA</p>
+                  <p className="text-ink font-mono text-lg font-bold tracking-wide select-none">{captcha.q}</p>
+                </div>
+                <input
+                  value={captchaInput}
+                  onChange={(e) => setCaptchaInput(e.target.value.replace(/[^0-9-]/g, ''))}
+                  placeholder="Answer"
+                  className="kc-input w-24 py-2.5 text-center font-mono text-[15px]"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCaptcha(genCaptcha());
+                    setCaptchaInput('');
+                  }}
+                  className="text-muted hover:text-maroon text-lg leading-none px-1"
+                  title="Refresh CAPTCHA"
+                >
+                  ↻
+                </button>
+              </div>
 
               {error && <p className="kc-alert-error">{error}</p>}
 
