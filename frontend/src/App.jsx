@@ -11,6 +11,8 @@ import Credits from './pages/Credits';
 import Verify from './pages/Verify';
 import Tasks from './pages/Tasks';
 import Reports from './pages/Reports';
+import Privacy from './pages/Privacy';
+import Terms from './pages/Terms';
 
 function LoadingGate() {
   return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-indigo-200">Loading…</div>;
@@ -40,6 +42,8 @@ export default function App() {
           <main className="min-h-[calc(100vh-60px)]">
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/terms" element={<Terms />} />
               <Route path="/" element={<Protected><Dashboard /></Protected>} />
               <Route path="/skills" element={<Protected><SetupSkills /></Protected>} />
               <Route path="/match/:id" element={<Protected><MatchReview /></Protected>} />

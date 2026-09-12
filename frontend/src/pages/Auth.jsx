@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 function genCaptcha() {
@@ -120,13 +120,13 @@ export default function Auth() {
         {/* footer — only branding side */}
         <div className="relative px-6 sm:px-10 lg:px-14 xl:px-16 pb-6 lg:pb-8">
           <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted border-t border-line pt-4 max-w-[560px]">
-            <a href="/PRIVACY_POLICY.md" target="_blank" rel="noreferrer" className="hover:text-maroon underline underline-offset-4">
+            <Link to="/privacy" className="hover:text-maroon underline underline-offset-4">
               Privacy Policy
-            </a>
+            </Link>
             <span className="text-line">•</span>
-            <a href="#" onClick={(e) => e.preventDefault()} className="hover:text-maroon underline underline-offset-4">
+            <Link to="/terms" className="hover:text-maroon underline underline-offset-4">
               Terms &amp; Conditions
-            </a>
+            </Link>
             <span className="text-line">•</span>
             <span>© {new Date().getFullYear()} KaushalChakra</span>
           </div>
@@ -218,9 +218,9 @@ export default function Auth() {
                   />
                   <span>
                     I consent to KaushalChakra storing my profile, skill, and exchange data as described in the{' '}
-                    <a href="/PRIVACY_POLICY.md" target="_blank" rel="noreferrer" className="kc-link">
+                    <Link to="/privacy" target="_blank" className="kc-link">
                       Privacy Policy
-                    </a>
+                    </Link>
                     {' '} (DPDP Act, 2023)
                   </span>
                 </label>
@@ -272,7 +272,7 @@ export default function Auth() {
 
           {/* right side footer hint on mobile only */}
           <p className="lg:hidden text-center text-[11px] text-muted/60 mt-6">
-            © {new Date().getFullYear()} KaushalChakra · <a href="/PRIVACY_POLICY.md" target="_blank" rel="noreferrer" className="underline">Privacy</a> · Terms
+            © {new Date().getFullYear()} KaushalChakra · <Link to="/privacy" className="underline">Privacy</Link> · <Link to="/terms" className="underline">Terms</Link>
           </p>
         </div>
       </div>
