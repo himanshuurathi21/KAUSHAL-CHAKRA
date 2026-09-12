@@ -30,7 +30,7 @@ export default function Auth() {
     }
   };
 
-  const input = 'kc-input';
+  const input = 'kc-input py-3.5 text-[15px]';
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-paper">
@@ -124,17 +124,17 @@ export default function Auth() {
             <p className="text-muted text-xs">Get matched in fair multi-person cycles.</p>
           </div>
 
-          <div className="kc-card p-7 sm:p-8 lg:p-8 shadow-sm min-h-[540px] flex flex-col">
-            <div className="mb-6 pt-1">
-              <h2 className="kc-display text-xl font-bold text-ink">
+          <div className="kc-card p-7 sm:p-8 lg:p-8 shadow-sm min-h-[560px] flex flex-col">
+            <div className="mb-7 pt-1">
+              <h2 className="kc-display text-[22px] font-bold text-ink">
                 {mode === 'login' ? 'Welcome back' : 'Create account'}
               </h2>
-              <p className="text-muted text-sm mt-1">
+              <p className="text-muted text-[14px] mt-1.5">
                 {mode === 'login' ? 'Log in to continue your exchanges.' : 'Join and start trading skills.'}
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-1 bg-parchment rounded-lg p-1 mb-6">
+            <div className="grid grid-cols-2 gap-1 bg-parchment rounded-lg p-1 mb-7">
               {['login', 'signup'].map((m) => (
                 <button
                   key={m}
@@ -142,8 +142,8 @@ export default function Auth() {
                     setMode(m);
                     setError('');
                   }}
-                  className={`py-2 rounded-md text-sm font-semibold capitalize transition-colors cursor-pointer ${
-                    mode === m ? 'bg-maroon text-white' : 'text-muted hover:text-ink'
+                  className={`py-2.5 rounded-md text-sm font-semibold capitalize transition-colors cursor-pointer ${
+                    mode === m ? 'bg-maroon text-white shadow-sm' : 'text-muted hover:text-ink'
                   }`}
                 >
                   {m === 'login' ? 'Log in' : 'Sign up'}
@@ -151,7 +151,7 @@ export default function Auth() {
               ))}
             </div>
 
-            <form onSubmit={submit} className="space-y-4">
+            <form onSubmit={submit} className="space-y-5 flex-1 flex flex-col">
               {mode === 'signup' && (
                 <>
                   <input
@@ -210,7 +210,7 @@ export default function Auth() {
 
               <button
                 disabled={busy || (mode === 'signup' && !form.consent)}
-                className="kc-btn w-full"
+                className="kc-btn w-full py-3.5 text-[15px] mt-auto"
               >
                 {busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
               </button>
