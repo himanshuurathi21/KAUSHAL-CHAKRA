@@ -13,11 +13,19 @@ export default function CycleChain({ participants, myUserId }) {
   const chain = buildChain(participants, myUserId);
   if (chain.length === 0) return null;
 
+  // Check if two adjacent users share an availability slot (tie-breaker display)
+  const hasOverlap = (a, b) => {
+    const aSlots = new Set(a.user?.availabilitySlots || []);
+    const bSlots = new Set(b.user?.availabilitySlots || []);
+    for (const s of aSlots) if (bSlots.has(s)) return true;
+    return false;
+  };
   return (
     <ol className="flex flex-col gap-3">
       {chain.map((p, i) => {
         const next = chain[(i + 1) % chain.length];
         const isMe = p.userId === myUserId;
+        const overlap = hasOverlap(p, next);
         return (
           <li key={p.id} className="flex flex-wrap items-center gap-3">
             <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 bg-white border border-line rounded-xl p-3">
@@ -52,7 +60,7 @@ export default function CycleChain({ participants, myUserId }) {
               </span>
             </div>
             <span className="text-maroon/60 shrink-0">→</span>
-            <div className="flex-1 flex items-center gap-2 bg-white border border-line rounded-xl p-3 justify-end">
+            <div className="flex-1 flex items-center gap-2 bg-white border border-line rounded-xl p-3 justify-end relative">
               <span className="text-muted text-sm whitespace-nowrap hidden sm:block">to</span>
               <span className="px-3 py-1 rounded-lg bg-leaf/10 border border-leaf/25 text-leaf text-sm font-medium w-fit">
                 {next.userId === myUserId ? 'You' : next.user.name}
@@ -60,6 +68,11 @@ export default function CycleChain({ participants, myUserId }) {
               {next.learnsLevel && (
                 <span className="px-2 py-0.5 rounded-md bg-parchment border border-line text-muted text-[10px] font-semibold uppercase tracking-wide">
                   {next.learnsLevel}
+                </span>
+              )}
+              {overlap && (
+                <span className="absolute -bottom-2 right-2 text-[10px] text-leaf bg-leaf/10 border border-leaf/20 px-1.5 py-0.5 rounded-full" title="You share a free slot">
+                  ✓ Compatible availability
                 </span>
               )}
             </div>

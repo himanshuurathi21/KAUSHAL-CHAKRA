@@ -44,7 +44,7 @@ async function withCreditLock(tx, userId) {
 async function findAvailablePartner(role, skillId, excludeUserId, db = prisma) {
   const wantsOrOffers = role === 'teacher' ? 'wanted' : 'offered';
   const candidates = await db.user.findMany({
-    where: { [wantsOrOffers]: { some: { skillId } } },
+    where: { [wantsOrOffers]: { some: { skillId } }, isActive: true, creditsFrozen: false },
     select: { id: true },
     orderBy: { id: 'asc' },
   });

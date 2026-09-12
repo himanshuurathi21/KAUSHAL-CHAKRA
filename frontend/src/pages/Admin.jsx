@@ -20,13 +20,16 @@ const SIZE_COLORS = {
 
 export default function Admin() {
   const [stats, setStats] = useState(null);
+  const [gaps, setGaps] = useState([]);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    api
-      .get('/admin/stats')
-      .then(({ data }) => setStats(data))
+    Promise.all([api.get('/admin/stats'), api.get('/admin/skill-gaps').catch(() => ({ data: { gaps: [] } }))])
+      .then(([{ data }, gapRes]) => {
+        setStats(data);
+        setGaps(gapRes.data.gaps || []);
+      })
       .catch((err) => setError(err.response?.data?.error || 'Failed to load stats'))
       .finally(() => setLoaded(true));
   }, []);
@@ -128,6 +131,38 @@ export default function Admin() {
           The cyclic engine unlocks skill exchanges that would never happen through simple 1-to-1
           matching — currently {safeComparison.pctWouldNotMatchWithoutCycles ?? '—'}% of matched users.
         </p>
+      </div>
+
+      {/* Skills in high demand, low supply */}
+      <div className="kc-card p-5 space-y-4">
+        <h2 className="kc-display text-lg text-ink font-bold">Skills in high demand, low supply</h2>
+        {gaps.length === 0 ? (
+          <p className="text-muted text-sm">No skill gap data.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-muted text-xs uppercase tracking-wider border-b border-line">
+                  <th className="text-left py-2">Skill</th>
+                  <th className="text-right py-2">Want</th>
+                  <th className="text-right py-2">Offer</th>
+                  <th className="text-right py-2">Gap</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gaps.slice(0, 10).map((g) => (
+                  <tr key={g.skillId} className="border-b border-line/60">
+                    <td className="py-2 font-medium text-ink">{g.skillName}</td>
+                    <td className="py-2 text-right text-muted">{g.demand}</td>
+                    <td className="py-2 text-right text-muted">{g.supply}</td>
+                    <td className={`py-2 text-right font-bold ${g.gap > 0 ? 'text-clay' : 'text-leaf'}`}>{g.gap > 0 ? `+${g.gap}` : g.gap}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-muted text-xs mt-2">e.g. "{gaps[0]?.demand} want {gaps[0]?.skillName}, only {gaps[0]?.supply} offer it" — top gap.</p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -29,6 +29,7 @@ const sessionInclude = {
   teacher: { select: { id: true, name: true } },
   learner: { select: { id: true, name: true } },
   skill: true,
+  task: true,
 };
 
 /** GET /api/credits — my balance, ledger entries and credit sessions. */
@@ -68,6 +69,8 @@ async function teachNow(req, res, next) {
       where: { id: req.userId },
       include: { offered: { select: { skillId: true } } },
     });
+    if (user.creditsFrozen) return res.status(403).json({ error: "Your credits are frozen due to a report" });
+    if (!user.isActive) return res.status(403).json({ error: "Your account is deactivated" });
     if (!user.offered.some((o) => o.skillId === skillId)) {
       return res.status(400).json({ error: 'You must offer this skill to teach it' });
     }
@@ -81,6 +84,9 @@ async function teachNow(req, res, next) {
     try {
       session = await prisma.$transaction(async (tx) => {
         await withCreditLock(tx, req.userId);
+        const freshUser = await tx.user.findUnique({ where: { id: req.userId } });
+        if (freshUser.creditsFrozen) fail(403, "Your credits are frozen due to a report");
+        if (!freshUser.isActive) fail(403, "Your account is deactivated");
         if (await hasActiveCycle(req.userId, tx)) {
           fail(400, 'You are already in an active cycle — no credit session needed');
         }
@@ -100,7 +106,8 @@ async function teachNow(req, res, next) {
       if (err?.status) return res.status(err.status).json({ error: err.message });
       throw err;
     }
-    await notify(session.learnerId, 'credit_session', `A teacher wants to teach you ${session.skill.name} — accept the session in Credits.`, '/credits');
+    const skillLabel = session.skill ? session.skill.name : (session.task ? session.task.title : 'skill');
+    await notify(session.learnerId, 'credit_session', `A teacher wants to teach you ${skillLabel} — accept the session in Credits.`, '/credits');
 
     res.status(201).json({ session });
   } catch (err) {
@@ -118,6 +125,8 @@ async function redeem(req, res, next) {
       where: { id: req.userId },
       include: { wanted: { select: { skillId: true } } },
     });
+    if (user.creditsFrozen) return res.status(403).json({ error: "Your credits are frozen due to a report" });
+    if (!user.isActive) return res.status(403).json({ error: "Your account is deactivated" });
     if (!user.wanted.some((w) => w.skillId === skillId)) {
       return res.status(400).json({ error: 'You must want this skill to redeem a credit for it' });
     }
@@ -128,6 +137,9 @@ async function redeem(req, res, next) {
     try {
       session = await prisma.$transaction(async (tx) => {
         await withCreditLock(tx, req.userId);
+        const freshUser = await tx.user.findUnique({ where: { id: req.userId } });
+        if (freshUser.creditsFrozen) fail(403, "Your credits are frozen due to a report");
+        if (!freshUser.isActive) fail(403, "Your account is deactivated");
         if (await hasActiveCycle(req.userId, tx)) {
           fail(400, 'You are already in an active cycle — no need to redeem');
         }
@@ -160,7 +172,8 @@ async function redeem(req, res, next) {
       throw err;
     }
 
-    await notify(session.teacherId, 'credit_session', `${user.name} redeemed a credit to learn ${session.skill.name} from you.`, '/credits');
+    const skillLabel2 = session.skill ? session.skill.name : (session.task ? session.task.title : 'skill');
+    await notify(session.teacherId, 'credit_session', `${user.name} redeemed a credit to learn ${skillLabel2} from you.`, '/credits');
 
     res.status(201).json({ session });
   } catch (err) {
@@ -181,7 +194,8 @@ async function acceptSession(req, res, next) {
       include: sessionInclude,
     });
 
-    await notifyInitiator(session, `${responderName(session)} accepted your credit session on ${session.skill.name}.`, '/credits');
+    const label = session.skill ? session.skill.name : (session.task ? session.task.title : 'session');
+    await notifyInitiator(session, `${responderName(session)} accepted your credit session on ${label}.`, '/credits');
 
     res.json({ session: updated });
   } catch (err) {
@@ -201,6 +215,10 @@ async function declineSession(req, res, next) {
         where: { id: session.id },
         data: { status: 'declined' },
       });
+      // If task session was in_progress, reopen the task
+      if (session.type === 'TASK' && session.taskId) {
+        await tx.task.update({ where: { id: session.taskId }, data: { status: 'OPEN' } });
+      }
       // A redeem reserves -1 up front; give the credit back when the
       // session never happens. Teacher-initiated sessions have no
       // up-front reservation, so there is nothing to refund.
@@ -208,7 +226,8 @@ async function declineSession(req, res, next) {
       if (refund) await tx.credit.create({ data: refund });
     });
 
-    await notifyInitiator(session, `${responderName(session)} declined your credit session on ${session.skill.name}.`, '/credits');
+    const label = session.skill ? session.skill.name : (session.task ? session.task.title : 'session');
+    await notifyInitiator(session, `${responderName(session)} declined your credit session on ${label}.`, '/credits');
 
     res.json({ ok: true });
   } catch (err) {
@@ -223,7 +242,7 @@ async function completeSession(req, res, next) {
     if (!Number.isInteger(sessionId)) return res.status(400).json({ error: 'Invalid session id' });
     const session = await prisma.creditSession.findUnique({
       where: { id: sessionId },
-      include: { skill: true },
+      include: { skill: true, task: true },
     });
     if (!session) return res.status(404).json({ error: 'Session not found' });
     if (session.teacherId !== req.userId && session.learnerId !== req.userId) {
@@ -244,21 +263,48 @@ async function completeSession(req, res, next) {
     });
 
     // Settle only when BOTH sides marked done. The atomic flip guarantees a
-    // single +1 mint no matter how the two completions interleave.
+    // single mint no matter how the two completions interleave.
     const flipped = await prisma.creditSession.updateMany({
       where: { id: session.id, status: 'active', teacherDoneAt: { not: null }, learnerDoneAt: { not: null } },
       data: { status: 'completed', completedAt: new Date() },
     });
     if (flipped.count === 1) {
-      await prisma.credit.create({
-        data: { userId: session.teacherId, delta: 1, reason: 'teach_now', sessionId: session.id },
-      });
-      await notify(
-        session.teacherId === req.userId ? session.learnerId : session.teacherId,
-        'credit_session',
-        `Your credit session on ${session.skill.name} is complete.`,
-        '/credits'
-      );
+      if (session.type === 'TASK' && session.taskId) {
+        // Task: move credits from poster (learner) to helper (teacher) using task.creditValue
+        const task = await prisma.task.findUnique({ where: { id: session.taskId } });
+        const amount = task ? task.creditValue : 1;
+        // Ensure poster still has enough balance (poster could have spent since claim)
+        const posterBal = await prisma.credit.aggregate({ where: { userId: session.learnerId }, _sum: { delta: true } });
+        if ((posterBal._sum.delta ?? 0) < amount) {
+          // Not enough credits — revert completion and inform
+          await prisma.creditSession.update({ where: { id: session.id }, data: { status: 'active', completedAt: null } });
+          return res.status(400).json({ error: `Poster has insufficient credits to pay ${amount} (has ${posterBal._sum.delta ?? 0})` });
+        }
+        // Deduct from poster, credit helper
+        await prisma.$transaction(async (tx) => {
+          await tx.credit.create({ data: { userId: session.learnerId, delta: -amount, reason: 'task_post', sessionId: session.id } });
+          await tx.credit.create({ data: { userId: session.teacherId, delta: amount, reason: 'task_complete', sessionId: session.id } });
+          await tx.task.update({ where: { id: session.taskId }, data: { status: 'COMPLETED' } });
+        });
+        const labelTask = session.task ? session.task.title : 'task';
+        await notify(
+          session.teacherId === req.userId ? session.learnerId : session.teacherId,
+          'credit_session',
+          `Your task "${labelTask}" is complete — ${amount} credit(s) moved.`,
+          '/tasks'
+        );
+      } else {
+        await prisma.credit.create({
+          data: { userId: session.teacherId, delta: 1, reason: 'teach_now', sessionId: session.id },
+        });
+        const labelSkill = session.skill ? session.skill.name : 'skill';
+        await notify(
+          session.teacherId === req.userId ? session.learnerId : session.teacherId,
+          'credit_session',
+          `Your credit session on ${labelSkill} is complete.`,
+          '/credits'
+        );
+      }
     }
 
     const updated = await prisma.creditSession.findUnique({ where: { id: session.id }, include: sessionInclude });

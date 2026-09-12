@@ -70,5 +70,15 @@ async function getStats(req, res, next) {
     next(err);
   }
 }
+async function getSkillGaps(req,res,next){
+  try{
+    const skills=await prisma.skill.findMany({select:{id:true,name:true}});
+    const [offeredCounts,wantedCounts]=await Promise.all([prisma.userOfferedSkill.groupBy({by: ["skillId"],_count:{skillId:true}}),prisma.userWantedSkill.groupBy({by:["skillId"],_count:{skillId:true}})]);
+    const offeredMap=new Map(offeredCounts.map(r=>[r.skillId,r._count.skillId]));
+    const wantedMap=new Map(wantedCounts.map(r=>[r.skillId,r._count.skillId]));
+    const gaps=skills.map(s=>{const supply=offeredMap.get(s.id)||0;const demand=wantedMap.get(s.id)||0;return{skillId:s.id,skillName:s.name,demand,supply,gap:demand-supply};}).sort((a,b)=>b.gap-a.gap);
+    res.json({gaps});
+  }catch(err){next(err);}
+}
 
-module.exports = { getStats };
+module.exports = { getStats, getSkillGaps };

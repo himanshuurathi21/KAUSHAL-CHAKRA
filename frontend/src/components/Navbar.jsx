@@ -17,6 +17,7 @@ const NAV_LINKS = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/exchanges', label: 'My Exchanges' },
   { to: '/credits', label: 'Credits' },
+  { to: '/tasks', label: 'Tasks' },
   { to: '/verify', label: 'Verify Skills' },
   { to: '/skills', label: 'Edit Skills' },
 ];
@@ -79,7 +80,7 @@ export default function Navbar() {
     <header className="bg-card/95 backdrop-blur border-b border-line sticky top-0 z-20">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5">
-          <span className="kc-seal w-9 h-9 text-maroon font-black text-sm">क</span>
+          <img src="/k-logo.png" alt="KaushalChakra" className="w-9 h-9 rounded-xl object-contain bg-white p-1 shadow-sm" />
           <span className="leading-tight">
             <span className="kc-display block font-bold text-ink text-lg tracking-tight">
               KaushalChakra
@@ -98,9 +99,14 @@ export default function Navbar() {
                 </NavLink>
               ))}
               {user.isAdmin && (
-                <NavLink to="/admin" className={linkCls}>
-                  Admin
-                </NavLink>
+                <>
+                  <NavLink to="/admin" className={linkCls}>
+                    Admin
+                  </NavLink>
+                  <NavLink to="/reports" className={linkCls}>
+                    Reports
+                  </NavLink>
+                </>
               )}
 
               {/* Notifications bell */}
@@ -224,17 +230,30 @@ export default function Navbar() {
             </NavLink>
           ))}
           {user.isAdmin && (
-            <NavLink
-              to="/admin"
-              onClick={() => setMenuOpen(false)}
-              className={({ isActive }) =>
-                `block px-3 py-2 rounded-lg text-sm font-medium ${
-                  isActive ? 'bg-maroon/10 text-maroon' : 'text-ink hover:bg-parchment'
-                }`
-              }
-            >
-              Admin
-            </NavLink>
+            <>
+              <NavLink
+                to="/admin"
+                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) =>
+                  `block px-3 py-2 rounded-lg text-sm font-medium ${
+                    isActive ? 'bg-maroon/10 text-maroon' : 'text-ink hover:bg-parchment'
+                  }`
+                }
+              >
+                Admin
+              </NavLink>
+              <NavLink
+                to="/reports"
+                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) =>
+                  `block px-3 py-2 rounded-lg text-sm font-medium ${
+                    isActive ? 'bg-maroon/10 text-maroon' : 'text-ink hover:bg-parchment'
+                  }`
+                }
+              >
+                Reports
+              </NavLink>
+            </>
           )}
           <div className="flex items-center justify-between px-3 py-2 border-t border-line">
             <span className="text-sm text-ink truncate">{user.name}</span>

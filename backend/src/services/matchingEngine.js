@@ -167,14 +167,16 @@ function findCycles(graph, { minLength = DEFAULTS.minLength, maxLength = DEFAULT
 function matchUsers(users, options = {}) {
   const graph = buildGraph(users, options);
   const allCycles = findCycles(graph, options);
-  const score = typeof options.levelScore === 'function' ? options.levelScore : null;
+  const levelScore = typeof options.levelScore === 'function' ? options.levelScore : null;
+  const availabilityScore = typeof options.availabilityScore === 'function' ? options.availabilityScore : null;
 
   // Prefer shorter cycles (fewer people to co-ordinate), then the
   // optional proficiency tie-breaker, then a deterministic user-id order.
   allCycles.sort(
     (a, b) =>
       a.userIds.length - b.userIds.length ||
-      (score ? score(b) - score(a) : 0) ||
+      (levelScore ? levelScore(b) - levelScore(a) : 0) ||
+        (availabilityScore ? availabilityScore(b) - availabilityScore(a) : 0) ||
       a.userIds[0] - b.userIds[0]
   );
 

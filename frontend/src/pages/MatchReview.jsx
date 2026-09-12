@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api/client';
 import CycleChain from '../components/CycleChain';
+import ReportButton from '../components/ReportButton';
 import { useAuth } from '../context/AuthContext';
 
 export default function MatchReview() {
@@ -231,6 +232,7 @@ export default function MatchReview() {
                   <span className="text-muted">{p.user.email}</span>
                   <span className="text-muted/70">({p.user.department ?? '—'})</span>
                   <span className="text-muted">teaches {p.teachesSkill.name}</span>
+                  <ReportButton reportedUserId={p.userId} cycleId={cycle.id} />
                 </li>
               ))}
           </ul>

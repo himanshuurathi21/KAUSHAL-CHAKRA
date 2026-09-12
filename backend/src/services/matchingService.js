@@ -45,16 +45,19 @@ async function loadGraphData(db = prisma) {
       select: {
         id: true,
         offered: { select: { skillId: true, level: true } },
+        availabilitySlots: true,
         wanted: { select: { skillId: true, level: true } },
       },
     }),
-    prisma.blockedEdge.findMany(),
+    db.blockedEdge.findMany(),
   ]);
 
   const offeredLevels = new Map();
+  const availabilityByUser = new Map();
   const wantedLevels = new Map();
   for (const u of users) {
     offeredLevels.set(u.id, new Map(u.offered.map((o) => [o.skillId, o.level])));
+    availabilityByUser.set(u.id, new Set(u.availabilitySlots || []));
     wantedLevels.set(u.id, new Map(u.wanted.map((w) => [w.skillId, w.level])));
   }
 
@@ -66,6 +69,7 @@ async function loadGraphData(db = prisma) {
     })),
     offeredLevels,
     wantedLevels,
+    availabilityByUser,
     blockedEdges: blocked.map((e) => ({ fromUserId: e.fromUserId, toUserId: e.toUserId })),
   };
 }
@@ -74,6 +78,20 @@ async function loadGraphData(db = prisma) {
  * Proficiency tie-breaker (Phase 2a): score a cycle by how many edges are a
  * "good fit" — the teacher's offered level is >= the learner's wanted level.
  */
+function availabilityScoreFor({ availabilityByUser }) {
+  return (cycle) => {
+    let score = 0;
+    for (const edge of cycle.edges) {
+      const aSlots = availabilityByUser.get(edge.fromUserId) || new Set();
+      const bSlots = availabilityByUser.get(edge.toUserId) || new Set();
+      let overlap = false;
+      for (const slot of aSlots) if (bSlots.has(slot)) overlap = true;
+      if (overlap) score++;
+    }
+    return score;
+  };
+}
+
 function levelScoreFor({ offeredLevels, wantedLevels }) {
   return (cycle) => {
     let good = 0;
@@ -155,6 +173,7 @@ async function runMatching() {
         blockedEdges: data.blockedEdges,
         skipUserIds,
         levelScore: levelScoreFor(data),
+        availabilityScore: availabilityScoreFor(data),
       });
 
       const created = [];

@@ -21,7 +21,12 @@ function checkCredentials(email, password) {
 /** POST /api/auth/signup — create account, return JWT + user. */
 async function signup(req, res, next) {
   try {
-    const { name, email, password, department } = req.body || {};
+    const { name, email, password, department, consent, consentGiven } = req.body || {};
+    // Strict boolean check — truthy strings/dates must not bypass consent (DPDP Act)
+    const hasConsent = consent === true || consentGiven === true;
+    if (!hasConsent) {
+      return res.status(400).json({ error: "You must consent to the Privacy Policy to create an account." });
+    }
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'name, email and password are required' });
     }
@@ -40,6 +45,7 @@ async function signup(req, res, next) {
         email: checked.email,
         passwordHash: await bcrypt.hash(checked.password, 10),
         department: department || null,
+        consentGivenAt: new Date(),
       },
     });
 
@@ -63,6 +69,9 @@ async function login(req, res, next) {
     const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    if (user.isActive === false) {
+      return res.status(403).json({ error: 'Your account has been deactivated. Contact support.' });
     }
 
     // Cookie for browsers; token in body for scripts (dual-auth).
@@ -105,7 +114,8 @@ function publicUser(user) {
     department: user.department,
     isAdmin: user.isAdmin,
     createdAt: user.createdAt,
-    offered: (user.offered ?? []).map((o) => ({ ...o.skill, level: o.level })),
+    availabilitySlots: user.availabilitySlots || [],
+    offered: (user.offered ?? []).map((o) => ({ ...o.skill, level: o.level, verificationStatus: o.verificationStatus || 'NONE' })),
     wanted: (user.wanted ?? []).map((w) => ({ ...w.skill, level: w.level })),
   };
 }

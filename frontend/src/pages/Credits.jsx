@@ -242,15 +242,18 @@ export default function Credits() {
               const responder = isResponder(s);
               const initiatorWaiting = s.status === 'proposed' && !responder;
               const partnerName = s.createdBy === 'teacher' ? s.learner.name : s.teacher.name;
+              const skillLabel = s.skill ? s.skill.name : (s.task ? s.task.title : 'Task');
+              const isTask = s.type === 'TASK';
               return (
                 <li
                   key={s.id}
                   className="flex flex-wrap items-center gap-2 text-sm bg-white border border-line rounded-xl px-3 py-2"
                 >
                   <span className="text-muted">
-                    <b className="text-ink">{s.teacher.name}</b> teaches{' '}
-                    <span className="text-leaf font-medium">{s.skill.name}</span> to{' '}
+                    <b className="text-ink">{s.teacher.name}</b> {isTask ? 'helps' : 'teaches'}{' '}
+                    <span className="text-leaf font-medium">{skillLabel}</span> {isTask ? `(${s.task.creditValue}c)` : ''} to{' '}
                     <b className="text-ink">{s.learner.name}</b>
+                    {isTask && <span className="ml-1 kc-badge kc-badge-neutral text-[10px]">TASK</span>}
                   </span>
                   <span
                     className={`kc-badge ${

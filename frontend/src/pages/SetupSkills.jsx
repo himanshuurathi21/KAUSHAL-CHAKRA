@@ -5,6 +5,7 @@ import SkillPicker from '../components/SkillPicker';
 import { useAuth } from '../context/AuthContext';
 
 const LEVELS = ['BEGINNER', 'INTERMEDIATE', 'EXPERT'];
+const SLOTS = ["WEEKDAY_MORNING", "WEEKDAY_AFTERNOON", "WEEKDAY_EVENING", "WEEKEND_MORNING", "WEEKEND_AFTERNOON", "WEEKEND_EVENING"];
 
 // Hoisted (stable identity): defining this inside the page remounts every
 // <select> on each parent render, killing focus and open dropdowns.
@@ -48,6 +49,7 @@ export default function SetupSkills() {
   const [offeredLevels, setOfferedLevels] = useState({});
   const [wantedLevels, setWantedLevels] = useState({});
   const [verifiedIds, setVerifiedIds] = useState(new Set());
+  const [availability, setAvailability] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -73,14 +75,16 @@ export default function SetupSkills() {
         setWantedLevels(
           Object.fromEntries(data.user.wanted.map((s) => [s.id, s.level ?? 'BEGINNER']))
         );
+        if (Array.isArray(data.user.availabilitySlots)) setAvailability(data.user.availabilitySlots);
+        // Derive verified ids from verificationStatus (new system) + legacy verifications
+        const verifiedFromStatus = data.user.offered.filter(o => ['QUIZ_PASSED','CERT_VERIFIED'].includes(o.verificationStatus)).map(o=>o.id);
+        if (verifiedFromStatus.length) setVerifiedIds(prev => new Set([...prev, ...verifiedFromStatus]));
       })
       .catch(() => {});
     api
       .get('/verify/mine')
       .then(({ data }) =>
-        setVerifiedIds(
-          new Set(data.verifications.filter((v) => v.status === 'approved').map((v) => v.skillId))
-        )
+        setVerifiedIds(prev => new Set([...prev, ...data.verifications.filter((v) => v.status === 'approved').map((v) => v.skillId)]))
       )
       .catch(() => {});
     return () => {
@@ -99,6 +103,9 @@ export default function SetupSkills() {
   };
 
   const setLevel = (setLevels, id, level) => setLevels((prev) => ({ ...prev, [id]: level }));
+  const toggleSlot = (slot) => {
+    setAvailability(prev => prev.includes(slot) ? prev.filter(s=>s!==slot) : [...prev, slot]);
+  };
 
   const save = async () => {
     setError('');
@@ -112,6 +119,7 @@ export default function SetupSkills() {
       const { data } = await api.put('/profile/skills', {
         offered: [...offered].map((id) => ({ id, level: offeredLevels[id] || 'INTERMEDIATE' })),
         wanted: [...wanted].map((id) => ({ id, level: wantedLevels[id] || 'BEGINNER' })),
+        availabilitySlots: availability,
       });
       await refresh();
       setNotice(`Saved. Matching engine proposed ${data.newCyclesProposed} new cycle(s).`);
@@ -172,6 +180,19 @@ export default function SetupSkills() {
         </h2>
         <SkillPicker skills={skills} selected={wanted} onToggle={(id) => toggle(setWanted, setWantedLevels, 'BEGINNER', id)} />
         <LevelEditor skills={skills} selected={wanted} levels={wantedLevels} fallback="BEGINNER" onLevel={(id, l) => setLevel(setWantedLevels, id, l)} />
+      </div>
+
+      <div className={section}>
+        <h2 className={sectionTitle}>Availability</h2>
+        <p className="text-muted text-xs">Select when you are free. Matching prefers cycles where neighbours share a slot (tie-breaker only).</p>
+        <div className="flex flex-wrap gap-2">
+          {SLOTS.map(slot=>(
+            <label key={slot} className={`px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer border ${availability.includes(slot) ? "bg-maroon text-white border-maroon" : "bg-white text-ink border-line"}`}>
+              <input type="checkbox" className="hidden" checked={availability.includes(slot)} onChange={()=>toggleSlot(slot)} />
+              {slot.replace("_"," ")}
+            </label>
+          ))}
+        </div>
       </div>
 
       {error && (

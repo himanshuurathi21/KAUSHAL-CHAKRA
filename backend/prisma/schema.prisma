@@ -14,6 +14,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum VerificationStatus {
+  NONE
+  QUIZ_PASSED
+  CERT_SUBMITTED
+  CERT_VERIFIED
+}
+
+enum ReportStatus {
+  PENDING
+  WARNED
+  REMOVED
+  CREDIT_HOLD
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 enum SkillLevel {
   BEGINNER
   INTERMEDIATE
@@ -28,6 +49,10 @@ model User {
   department   String?
   isAdmin      Boolean  @default(false)
   createdAt    DateTime @default(now())
+  consentGivenAt DateTime?
+  availabilitySlots String[] @default([])
+  creditsFrozen Boolean @default(false)
+  isActive      Boolean @default(true)
 
   offered          UserOfferedSkill[]
   wanted           UserWantedSkill[]
@@ -43,6 +68,11 @@ model User {
   creditSessionsLearned CreditSession[]    @relation("CreditLearner")
   verifications    SkillVerification[]
   reviewsDone      SkillVerification[] @relation("VerificationReviewer")
+  quizAttempts     QuizAttempt[]
+  certificates     Certificate[]
+  reportsMade      Report[] @relation("Reporter")
+  reportsReceived  Report[] @relation("ReportedUser")
+  tasks            Task[] @relation("TaskPoster")
 }
 
 model Skill {
@@ -55,6 +85,9 @@ model Skill {
   learns  MatchCycleParticipant[] @relation("Learns")
   creditSessions CreditSession[]
   verifications  SkillVerification[]
+  quizQuestions  QuizQuestion[]
+  quizAttempts   QuizAttempt[]
+  certificates   Certificate[]
 }
 
 model UserOfferedSkill {
@@ -63,6 +96,7 @@ model UserOfferedSkill {
   skillId Int
   // how proficient the user claims to be at teaching this skill
   level   SkillLevel @default(INTERMEDIATE)
+  verificationStatus VerificationStatus @default(NONE)
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
@@ -93,6 +127,7 @@ model MatchCycle {
   participants MatchCycleParticipant[]
   ratings      Rating[]
   messages     Message[]
+  reports      Report[]
 }
 
 model MatchCycleParticipant {
@@ -224,9 +259,11 @@ model CreditSession {
   id          Int       @id @default(autoincrement())
   teacherId   Int
   learnerId   Int
-  skillId     Int
+  skillId     Int?
   createdBy   String // teacher | learner
   status      String   @default("proposed") // proposed -> active -> completed | declined
+  type        String   @default("SKILL") // SKILL | TASK
+  taskId      Int?
   createdAt   DateTime @default(now())
   completedAt DateTime?
   // Two-sided completion: the teacher's +1 mints only after BOTH sides
@@ -236,11 +273,86 @@ model CreditSession {
 
   teacher User  @relation("CreditTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
   learner User  @relation("CreditLearner", fields: [learnerId], references: [id], onDelete: Cascade)
-  skill   Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skill   Skill? @relation(fields: [skillId], references: [id], onDelete: SetNull)
+  task    Task?  @relation(fields: [taskId], references: [id], onDelete: SetNull)
 
   credits Credit[]
 
   @@index([teacherId])
   @@index([learnerId])
   @@index([status])
+  @@index([type])
+  @@index([taskId])
+}
+
+model QuizQuestion {
+  id Int @id @default(autoincrement())
+  skillId Int
+  question String
+  options String[]
+  correctOptionIndex Int
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  @@index([skillId])
+}
+
+model QuizAttempt {
+  id Int @id @default(autoincrement())
+  userId Int
+  skillId Int
+  score Int
+  passed Boolean
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  @@index([userId, skillId])
+  @@index([skillId])
+}
+
+model Certificate {
+  id Int @id @default(autoincrement())
+  userId Int
+  skillId Int
+  issuer String
+  verificationId String
+  status String @default("PENDING")
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  @@index([userId, skillId])
+  @@index([status])
+}
+
+model Report {
+  id Int @id @default(autoincrement())
+  reporterId Int
+  reportedUserId Int
+  taskId Int?
+  cycleId Int?
+  reason String
+  status ReportStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+  reporter User @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser User @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  cycle MatchCycle? @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+  @@index([status])
+  @@index([reportedUserId])
+}
+
+model Task {
+  id Int @id @default(autoincrement())
+  posterId Int
+  title String
+  description String
+  category String
+  creditValue Int
+  status TaskStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  poster User @relation("TaskPoster", fields: [posterId], references: [id], onDelete: Cascade)
+  creditSessions CreditSession[]
+  reports Report[]
+  @@index([status])
+  @@index([category])
+  @@index([posterId])
 }

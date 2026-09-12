@@ -1,8 +1,9 @@
-# Render blueprint — free-tier deployment
-# Deploy: render.com pe GitHub login karo -> "New" -> "Blueprint" -> yeh repo
-# One web service builds BOTH the backend and the frontend; Express serves
-# the built React app itself (see backend/src/index.js). Only 2 resources —
-# both supported by the Render blueprint spec.
+﻿# Render blueprint - free-tier deployment
+# One web service builds BOTH backend and frontend; Express serves frontend/dist.
+# Neon (hosted Postgres) is now used instead of Render free Postgres (which expires after 30 days).
+# For Neon: set DATABASE_URL manually in Render dashboard -> Environment -> add your Neon pooled URL
+# (e.g. postgresql://neondb_owner:npg_xxx@ep-xxx.neon.tech/neondb?sslmode=require)
+# If you prefer Render DB, keep the fromDatabase below; otherwise replace with a plain value.
 services:
   - type: web
     name: kaushalchakra-app
@@ -14,6 +15,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
+        # For Neon: change to `value: postgresql://...` or set in dashboard; keep fromDatabase for Render DB
         fromDatabase:
           name: kaushalchakra-db
           property: connectionString

@@ -39,16 +39,20 @@ async function getProfile(req, res, next) {
  */
 async function updateSkills(req, res, next) {
   try {
-    const { offered = [], wanted = [] } = req.body || {};
+    const { offered = [], wanted = [], availabilitySlots = null } = req.body || {};
     if (!Array.isArray(offered) || !Array.isArray(wanted)) {
       return res.status(400).json({ error: 'offered and wanted must be arrays of skill ids (or {id, level})' });
     }
 
     const LEVELS = ['BEGINNER', 'INTERMEDIATE', 'EXPERT'];
+    // Strict: level must be explicit if provided as object; bare ids get defaults later but still validated
     const norm = (arr) =>
       arr.map((x) => {
         const obj = typeof x === 'object' && x !== null ? x : { id: x };
-        return { id: Number(obj.id), level: obj.level || null };
+        // If caller sent {id, level: undefined} treat as missing → will default after validation
+        // If caller sent {id:5} with no level key, we keep null so validation can assign default and still enforce
+        const rawLevel = Object.prototype.hasOwnProperty.call(obj, 'level') ? obj.level : null;
+        return { id: Number(obj.id), level: rawLevel || null, hadLevelKey: Object.prototype.hasOwnProperty.call(obj, 'level') };
       });
     const offeredNorm = norm(offered);
     const wantedNorm = norm(wanted);
@@ -66,8 +70,11 @@ async function updateSkills(req, res, next) {
       for (const item of list) map.set(item.id, item);
       return Array.from(map.values());
     };
-    const offeredDeduped = dedupe(offeredNorm);
-    const wantedDeduped = dedupe(wantedNorm);
+    const offeredDedupedRaw = dedupe(offeredNorm);
+    const wantedDedupedRaw = dedupe(wantedNorm);
+    // Apply defaults BEFORE validation so bare ids are not a bypass
+    const offeredDeduped = offeredDedupedRaw.map(o => ({ id: o.id, level: o.level || 'INTERMEDIATE' }));
+    const wantedDeduped = wantedDedupedRaw.map(w => ({ id: w.id, level: w.level || 'BEGINNER' }));
 
     // A skill may appear in both offered and wanted (e.g. teach it at a
     // higher level while still learning more) — validate each unique id once.
@@ -78,23 +85,55 @@ async function updateSkills(req, res, next) {
     }
 
     // Validate every unique id against the taxonomy
-    const validCount = await prisma.skill.count({ where: { id: { in: allIds } } });
+    const validCount = allIds.length === 0 ? 0 : await prisma.skill.count({ where: { id: { in: allIds } } });
     if (validCount !== allIds.length) {
       return res.status(400).json({ error: 'One or more skill ids are not in the taxonomy' });
     }
 
+    const ALLOWED_SLOTS = ["WEEKDAY_MORNING","WEEKDAY_AFTERNOON","WEEKDAY_EVENING","WEEKEND_MORNING","WEEKEND_AFTERNOON","WEEKEND_EVENING"];
+    let slotsToUpdate = null;
+    if (availabilitySlots !== null && availabilitySlots !== undefined) {
+      if (!Array.isArray(availabilitySlots)) return res.status(400).json({ error: "availabilitySlots must be an array" });
+      const invalid = availabilitySlots.filter(s => !ALLOWED_SLOTS.includes(s));
+      if (invalid.length) return res.status(400).json({ error: "Invalid availability slots: " + invalid.join(", ") });
+      slotsToUpdate = [...new Set(availabilitySlots)];
+    }
+
     const userId = req.userId;
-    // Replace offered skills
-    await prisma.$transaction([
+    // Verification enforcement: INTERMEDIATE requires quiz, EXPERT requires verified certificate
+    // Check both new (QuizAttempt/Certificate) and legacy (SkillVerification) so neither path blocks valid users
+    for (const { id, level } of offeredDeduped) {
+      if (level === "INTERMEDIATE") {
+        const [passed, legacy] = await Promise.all([
+          prisma.quizAttempt.findFirst({ where: { userId, skillId: id, passed: true } }),
+          prisma.skillVerification.findFirst({ where: { userId, skillId: id, status: 'approved' } }),
+        ]);
+        if (!passed && !legacy) return res.status(400).json({ error: "Level INTERMEDIATE for skill " + id + " requires passing the quiz for that skill" });
+      } else if (level === "EXPERT") {
+        const [cert, legacy] = await Promise.all([
+          prisma.certificate.findFirst({ where: { userId, skillId: id, status: "VERIFIED" } }),
+          prisma.skillVerification.findFirst({ where: { userId, skillId: id, status: 'approved', claimedLevel: 'EXPERT' } }),
+        ]);
+        if (!cert && !legacy) return res.status(400).json({ error: "Level EXPERT for skill " + id + " requires a verified certificate for that skill" });
+      }
+    }
+
+
+    // Replace offered skills + availability atomically
+    const ops = [
       prisma.userOfferedSkill.deleteMany({ where: { userId } }),
       prisma.userWantedSkill.deleteMany({ where: { userId } }),
       ...offeredDeduped.map(({ id, level }) =>
-        prisma.userOfferedSkill.create({ data: { userId, skillId: id, level: level || 'INTERMEDIATE' } })
+        prisma.userOfferedSkill.create({ data: { userId, skillId: id, level, verificationStatus: level === 'EXPERT' ? 'CERT_VERIFIED' : level === 'INTERMEDIATE' ? 'QUIZ_PASSED' : 'NONE' } })
       ),
       ...wantedDeduped.map(({ id, level }) =>
-        prisma.userWantedSkill.create({ data: { userId, skillId: id, level: level || 'BEGINNER' } })
+        prisma.userWantedSkill.create({ data: { userId, skillId: id, level } })
       ),
-    ]);
+    ];
+    if (slotsToUpdate !== null) {
+      ops.push(prisma.user.update({ where: { id: userId }, data: { availabilitySlots: slotsToUpdate } }));
+    }
+    await prisma.$transaction(ops);
 
     // Skill changes may unlock new cycles for everyone — re-run matching
     const newCycles = await runMatching();

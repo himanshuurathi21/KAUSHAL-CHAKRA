@@ -5,7 +5,7 @@ const { notifyMany } = require('../services/notificationService');
 const cycleInclude = {
   participants: {
     include: {
-      user: { select: { id: true, name: true, email: true, department: true } },
+      user: { select: { id: true, name: true, email: true, department: true, availabilitySlots: true } },
       teachesSkill: true,
       learnsSkill: true,
     },
@@ -409,7 +409,7 @@ async function enrichCycles(cycles) {
   const participantRows = present.flatMap((c) => c.participants);
   const hasRows = participantRows.length > 0;
 
-  const [offeredLevels, wantedLevels, aggRows, verifiedRows] = await Promise.all([
+  const [offeredLevels, wantedLevels, aggRows, verifiedRows, quizPassedRows, certRows] = await Promise.all([
     hasRows
       ? prisma.userOfferedSkill.findMany({
           where: { OR: participantRows.map((p) => ({ userId: p.userId, skillId: p.teachesSkillId })) },
@@ -437,6 +437,18 @@ async function enrichCycles(cycles) {
           select: { userId: true, skillId: true, claimedLevel: true },
         })
       : [],
+    hasRows
+      ? prisma.quizAttempt.findMany({
+          where: { userId: { in: participantRows.map((p) => p.userId) }, passed: true },
+          select: { userId: true, skillId: true },
+        })
+      : [],
+    hasRows
+      ? prisma.certificate.findMany({
+          where: { userId: { in: participantRows.map((p) => p.userId) }, status: 'VERIFIED' },
+          select: { userId: true, skillId: true },
+        })
+      : [],
   ]);
 
   const levelOf = (rows, userId, skillId) =>
@@ -448,6 +460,18 @@ async function enrichCycles(cycles) {
   for (const v of verifiedRows) {
     if (!verifiedByUser.has(v.userId)) verifiedByUser.set(v.userId, []);
     verifiedByUser.get(v.userId).push({ skillId: v.skillId, level: v.claimedLevel });
+  }
+  for (const q of quizPassedRows) {
+    if (!verifiedByUser.has(q.userId)) verifiedByUser.set(q.userId, []);
+    // Quiz pass verifies INTERMEDIATE (and implicitly BEGINNER); add both for flexibility
+    verifiedByUser.get(q.userId).push({ skillId: q.skillId, level: 'INTERMEDIATE' });
+    verifiedByUser.get(q.userId).push({ skillId: q.skillId, level: 'BEGINNER' });
+  }
+  for (const c of certRows) {
+    if (!verifiedByUser.has(c.userId)) verifiedByUser.set(c.userId, []);
+    verifiedByUser.get(c.userId).push({ skillId: c.skillId, level: 'EXPERT' });
+    verifiedByUser.get(c.userId).push({ skillId: c.skillId, level: 'INTERMEDIATE' });
+    verifiedByUser.get(c.userId).push({ skillId: c.skillId, level: 'BEGINNER' });
   }
 
   return present.map((cycle) => {
@@ -462,6 +486,7 @@ async function enrichCycles(cycles) {
           name: p.user.name,
           email: ['confirmed', 'completed'].includes(cycle.status) ? p.user.email : null,
           department: p.user.department,
+          availabilitySlots: p.user.availabilitySlots || [],
           avgRating: agg?.avgRating ?? null,
           ratingCount: agg?.ratingCount ?? 0,
           verifiedLevels: verifiedByUser.get(p.userId) ?? [],

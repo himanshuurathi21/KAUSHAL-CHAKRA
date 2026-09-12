@@ -78,6 +78,7 @@ async function requireAuth(req, res, next) {
   try {
     const user = await prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user) return res.status(401).json({ error: 'User no longer exists' });
+    if (user.isActive === false) return res.status(403).json({ error: 'Your account has been deactivated' });
     req.userId = user.id;
     next();
   } catch (err) {

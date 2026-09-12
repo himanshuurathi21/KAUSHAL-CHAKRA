@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Auth() {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({ name: '', email: '', password: '', department: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', department: '', consent: false });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const { user, loading, login, signup } = useAuth();
@@ -102,6 +102,25 @@ export default function Auth() {
               minLength={6}
             />
 
+            {mode === 'signup' && (
+              <label className="flex items-start gap-2 text-xs text-muted cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.consent}
+                  onChange={(e) => setForm({ ...form, consent: e.target.checked })}
+                  className="mt-0.5 accent-[var(--color-maroon)]"
+                  required
+                />
+                <span>
+                  I consent to KaushalChakra storing my profile, skill, and exchange data as described in the{' '}
+                  <a href="/PRIVACY_POLICY.md" target="_blank" rel="noreferrer" className="kc-link">
+                    Privacy Policy
+                  </a>
+                  {' '} (DPDP Act, 2023)
+                </span>
+              </label>
+            )}
+
             {error && (
               <p className="kc-alert-error">
                 {error}
@@ -109,7 +128,7 @@ export default function Auth() {
             )}
 
             <button
-              disabled={busy}
+              disabled={busy || (mode === 'signup' && !form.consent)}
               className="kc-btn w-full"
             >
               {busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
