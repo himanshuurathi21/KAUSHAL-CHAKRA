@@ -16,8 +16,23 @@ async function createTask(req, res, next) {
     if (user.creditsFrozen) return res.status(403).json({ error: "Your credits are frozen due to a report" });
     if (!user.isActive) return res.status(403).json({ error: "Your account is deactivated" });
     const task = await prisma.task.create({
-      data: { posterId: req.userId, title: title.trim(), description: description.trim(), category, creditValue: cv, status: "OPEN" }
+      data: {
+        posterId: req.userId,
+        title: title.trim(),
+        description: description.trim(),
+        category,
+        creditValue: cv,
+        status: "OPEN",
+        requiredSkillId: req.body.requiredSkillId ? Number(req.body.requiredSkillId) : null,
+        deliverable: typeof req.body.deliverable === 'string' ? req.body.deliverable.trim().slice(0, 500) : null,
+        complexity: ['S','M','L'].includes(req.body.complexity) ? req.body.complexity : 'M',
+        deadline: req.body.deadline ? new Date(req.body.deadline) : null,
+      }
     });
+    try {
+      const { rewardFirstTask } = require('../services/creditRewardService');
+      await rewardFirstTask(req.userId);
+    } catch (e) { console.error('first_task credit failed', e); }
     res.status(201).json({ task });
   } catch (err) { next(err); }
 }

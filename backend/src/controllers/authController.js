@@ -49,6 +49,14 @@ async function signup(req, res, next) {
       },
     });
 
+    // Welcome credits — idempotent, server-authoritative
+    try {
+      const { rewardWelcome } = require('../services/creditRewardService');
+      await rewardWelcome(user.id);
+    } catch (e) {
+      console.error('welcome credit failed', e);
+    }
+
     // Cookie for browsers; token in body for scripts (dual-auth).
     const token = setSessionCookie(res, user);
     res.status(201).json({ token, user: publicUser(user) });

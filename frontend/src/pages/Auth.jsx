@@ -13,6 +13,7 @@ export default function Auth() {
   const [form, setForm] = useState({ name: '', email: '', password: '', department: '', consent: false });
   const [captcha, setCaptcha] = useState(() => genCaptcha());
   const [captchaInput, setCaptchaInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const { user, loading, login, signup } = useAuth();
@@ -197,15 +198,38 @@ export default function Auth() {
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
                 required
               />
-              <input
-                className={input}
-                type="password"
-                placeholder="Password (min 6 characters)"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                required
-                minLength={6}
-              />
+              <div className="relative">
+                <input
+                  className={`${input} pr-12`}
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Password (min 6 characters)"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-md text-muted hover:text-ink hover:bg-parchment transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5" aria-hidden="true">
+                      <path d="M3 3l18 18" />
+                      <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                      <path d="M9.9 5.1A10.5 10.5 0 0 1 12 4c4.5 0 8 5 8 8a10 10 0 0 1-2.3 4.2" />
+                      <path d="M14.8 14.8A10 10 0 0 1 12 20c-4.5 0-8-5-8-8a10 10 0 0 1 3.7-5.1" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5" aria-hidden="true">
+                      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
 
               {mode === 'signup' && (
                 <label className="flex items-start gap-2 text-xs text-muted cursor-pointer">

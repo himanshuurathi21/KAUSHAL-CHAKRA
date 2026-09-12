@@ -59,6 +59,27 @@ async function getMyCredits(req, res, next) {
   }
 }
 
+/** GET /api/credits/progress — how to reach 100 credits */
+async function getProgress(req, res, next) {
+  try {
+    const userId = req.userId;
+    const [balanceAgg, hasWelcome, hasFirstTask, hasTaskSwap] = await Promise.all([
+      prisma.credit.aggregate({ where: { userId }, _sum: { delta: true } }),
+      prisma.credit.count({ where: { userId, reason: 'welcome' } }),
+      prisma.credit.count({ where: { userId, reason: 'first_task' } }),
+      prisma.credit.count({ where: { userId, reason: 'task_swap_complete' } }),
+    ]);
+    const balance = balanceAgg._sum.delta ?? 0;
+    const tiers = [
+      { name: 'Welcome', earned: hasWelcome > 0, credits: 20, desc: 'Create account' },
+      { name: 'First Task', earned: hasFirstTask > 0, credits: 5, desc: 'Post a task' },
+      { name: 'Task Swap', earned: hasTaskSwap > 0, credits: 15, desc: 'Complete a task swap (both approve)' },
+    ];
+    const nextAction = !hasWelcome ? 'Create account to get 20 welcome credits' : !hasFirstTask ? 'Post your first task (+5)' : !hasTaskSwap ? 'Complete a task swap (+15)' : 'Keep completing exchanges!';
+    res.json({ balance, tiers, nextAction, target: 100 });
+  } catch (err) { next(err); }
+}
+
 /** POST /api/credits/teach — unmatched user teaches now, earns a credit on completion. */
 async function teachNow(req, res, next) {
   try {
@@ -347,4 +368,4 @@ async function notifyInitiator(session, content, link = '/credits') {
   await notify(initiatorId, 'credit_session', content, link);
 }
 
-module.exports = { getMyCredits, teachNow, redeem, acceptSession, declineSession, completeSession };
+module.exports = { getMyCredits, getProgress, teachNow, redeem, acceptSession, declineSession, completeSession };

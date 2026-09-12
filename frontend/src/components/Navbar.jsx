@@ -28,6 +28,7 @@ export default function Navbar() {
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [credits, setCredits] = useState(null);
   const bellDesktopRef = useRef(null);
   const bellMobileRef = useRef(null);
 
@@ -45,6 +46,14 @@ export default function Navbar() {
     fetchNotifs();
     const timer = setInterval(fetchNotifs, 20000);
     return () => clearInterval(timer);
+  }, [user?.id]);
+
+  // Credit wallet (Phase 1)
+  useEffect(() => {
+    if (!user) { setCredits(null); return; }
+    api.get('/credits/progress').then(({ data }) => setCredits(data.balance)).catch(() => {
+      api.get('/credits').then(({ data }) => setCredits(data.balance)).catch(() => {});
+    });
   }, [user?.id]);
 
   // Close the dropdown when clicking outside (either bell instance)
@@ -78,9 +87,10 @@ export default function Navbar() {
 
   return (
     <header className="bg-card/95 backdrop-blur border-b border-line sticky top-0 z-20">
-      <div className={`max-w-5xl mx-auto px-4 py-3 flex items-center ${user ? 'justify-between' : 'justify-center'}`}>
-        <Link to="/" className="flex items-center">
-          <img src="/k-logo.png" alt="KaushalChakra" className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl object-contain bg-white p-1 shadow-sm border border-line" />
+      <div className={`w-full px-4 sm:px-6 py-3 flex items-center ${user ? 'justify-between' : 'justify-center'}`}>
+        <Link to="/" className="flex items-center gap-2.5 shrink-0">
+          <img src="/k-logo.png" alt="KaushalChakra" className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain bg-white p-1 shadow-sm border border-line" />
+          <span className="kc-display font-bold text-ink text-lg sm:text-xl tracking-tight whitespace-nowrap">Kaushal Chakra</span>
         </Link>
 
         {user && (
@@ -102,6 +112,11 @@ export default function Navbar() {
                   </NavLink>
                 </>
               )}
+
+              {/* Credit wallet */}
+              <Link to="/credits" className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-maroon/10 border border-maroon/15 text-maroon text-xs font-bold">
+                <span>💰</span> {credits !== null ? credits : '…'}
+              </Link>
 
               {/* Notifications bell */}
               <div className="relative ml-1" ref={bellDesktopRef}>

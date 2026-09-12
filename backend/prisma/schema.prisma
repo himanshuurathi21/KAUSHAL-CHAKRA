@@ -53,6 +53,7 @@ model User {
   availabilitySlots String[] @default([])
   creditsFrozen Boolean @default(false)
   isActive      Boolean @default(true)
+  preferredExchangeType String? // SKILL | TASK
 
   offered          UserOfferedSkill[]
   wanted           UserWantedSkill[]
@@ -73,6 +74,8 @@ model User {
   reportsMade      Report[] @relation("Reporter")
   reportsReceived  Report[] @relation("ReportedUser")
   tasks            Task[] @relation("TaskPoster")
+  taskSwapsRequested TaskSwap[] @relation("TaskSwapRequester")
+  taskSwapsHelping   TaskSwap[] @relation("TaskSwapHelper")
 }
 
 model Skill {
@@ -88,6 +91,7 @@ model Skill {
   quizQuestions  QuizQuestion[]
   quizAttempts   QuizAttempt[]
   certificates   Certificate[]
+  tasksRequiring Task[] @relation("TaskRequiredSkill")
 }
 
 model UserOfferedSkill {
@@ -181,13 +185,17 @@ model Rating {
 // In-app chat scoped to a confirmed/completed cycle (no WebSockets in MVP)
 model Message {
   id        Int      @id @default(autoincrement())
-  cycleId   Int
+  cycleId   Int?
+  taskSwapId Int?
   senderId  Int
   content   String
   createdAt DateTime @default(now())
 
-  cycle  MatchCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  cycle  MatchCycle? @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  taskSwap TaskSwap? @relation(fields: [taskSwapId], references: [id], onDelete: Cascade)
   sender User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([taskSwapId])
 }
 
 model Notification {
@@ -211,14 +219,17 @@ model Credit {
   id        Int       @id @default(autoincrement())
   userId    Int
   delta     Int // +1 earned, -1 redeemed
-  reason    String // teach_now | redeem
+  reason    String // teach_now | redeem | welcome | first_task | task_swap_complete
   sessionId Int?
+  taskSwapId Int?
   createdAt DateTime  @default(now())
 
   user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   session CreditSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  taskSwap TaskSwap? @relation(fields: [taskSwapId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([taskSwapId])
 }
 
 // Skill verification — proof that a user's claimed proficiency level is real.
@@ -328,6 +339,7 @@ model Report {
   reportedUserId Int
   taskId Int?
   cycleId Int?
+  taskSwapId Int?
   reason String
   status ReportStatus @default(PENDING)
   createdAt DateTime @default(now())
@@ -336,6 +348,7 @@ model Report {
   reportedUser User @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
   task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
   cycle MatchCycle? @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+  taskSwap TaskSwap? @relation(fields: [taskSwapId], references: [id], onDelete: SetNull)
   @@index([status])
   @@index([reportedUserId])
 }
@@ -348,11 +361,50 @@ model Task {
   category String
   creditValue Int
   status TaskStatus @default(OPEN)
+  requiredSkillId Int?
+  deliverable String?
+  complexity String? @default("M") // S | M | L
+  deadline DateTime?
   createdAt DateTime @default(now())
   poster User @relation("TaskPoster", fields: [posterId], references: [id], onDelete: Cascade)
+  requiredSkill Skill? @relation("TaskRequiredSkill", fields: [requiredSkillId], references: [id], onDelete: SetNull)
   creditSessions CreditSession[]
   reports Report[]
+  requestedInSwaps TaskSwap[] @relation("RequestedTask")
+  offeredInSwaps TaskSwap[] @relation("OfferedTask")
   @@index([status])
   @@index([category])
   @@index([posterId])
+  @@index([requiredSkillId])
+}
+
+model TaskSwap {
+  id Int @id @default(autoincrement())
+  requesterId Int
+  helperId Int?
+  requestedTaskId Int
+  offeredTaskId Int?
+  status String @default("requested") // requested -> accepted -> in_progress -> submitted -> completed | rejected | cancelled
+  requestedDeliverableLink String?
+  offeredDeliverableLink String?
+  requestedSubmittedAt DateTime?
+  offeredSubmittedAt DateTime?
+  requestedApprovedAt DateTime?
+  offeredApprovedAt DateTime?
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requester User @relation("TaskSwapRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  helper User? @relation("TaskSwapHelper", fields: [helperId], references: [id], onDelete: SetNull)
+  requestedTask Task @relation("RequestedTask", fields: [requestedTaskId], references: [id], onDelete: Cascade)
+  offeredTask Task? @relation("OfferedTask", fields: [offeredTaskId], references: [id], onDelete: SetNull)
+  messages Message[]
+  reports Report[]
+  credits Credit[]
+
+  @@index([requesterId])
+  @@index([helperId])
+  @@index([status])
+  @@index([requestedTaskId])
 }

@@ -64,4 +64,20 @@ router.post("/tasks", requireAuth, createTask);
 router.get("/tasks", requireAuth, listTasks);
 router.post("/tasks/:id/claim", requireAuth, claimTask);
 
+// Task Swaps (Phase 1 - pairwise deliverable barter)
+const taskSwapController = require("../controllers/taskSwapController");
+router.post("/task-swaps", requireAuth, taskSwapController.createSwap);
+router.get("/task-swaps", requireAuth, taskSwapController.listSwaps);
+router.get("/task-swaps/:id", requireAuth, taskSwapController.getSwap);
+router.post("/task-swaps/:id/accept", requireAuth, taskSwapController.acceptSwap);
+router.post("/task-swaps/:id/reject", requireAuth, taskSwapController.rejectSwap);
+router.post("/task-swaps/:id/submit", requireAuth, taskSwapController.submitSwap);
+router.post("/task-swaps/:id/approve", requireAuth, taskSwapController.approveSwap);
+router.post("/task-swaps/:id/cancel", requireAuth, taskSwapController.cancelSwap);
+router.get("/task-swaps/:id/messages", requireAuth, taskSwapController.getMessages);
+router.post("/task-swaps/:id/messages", requireAuth, taskSwapController.sendMessage);
+
+// Credit progress (100-credit journey)
+router.get("/credits/progress", requireAuth, require("../controllers/creditController").getProgress);
+
 module.exports = router;

@@ -7,6 +7,8 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [exchangeType, setExchangeType] = useState(() => localStorage.getItem('kc_exchangeType') || 'SKILL');
+  const [creditProgress, setCreditProgress] = useState(null);
   const navigate = useNavigate();
 
   const load = () => {
@@ -16,7 +18,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     load();
+    api.get('/credits/progress').then(({ data }) => setCreditProgress(data)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('kc_exchangeType', exchangeType);
+  }, [exchangeType]);
 
   const runMatching = async () => {
     setBusy(true);
@@ -59,6 +66,33 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
+      {/* Exchange type toggle — Phase 1 */}
+      <div className="flex justify-center mb-6">
+        <div className="inline-flex bg-parchment rounded-full p-1 border border-line">
+          <button onClick={() => setExchangeType('SKILL')} className={`px-5 py-2 rounded-full text-sm font-semibold ${exchangeType==='SKILL'?'bg-maroon text-white':'text-muted'}`}>Learn a Skill</button>
+          <button onClick={() => setExchangeType('TASK')} className={`px-5 py-2 rounded-full text-sm font-semibold ${exchangeType==='TASK'?'bg-maroon text-white':'text-muted'}`}>Get a Task Done</button>
+        </div>
+      </div>
+
+      {/* Credit progress to 100 */}
+      {creditProgress && (
+        <div className="kc-card p-4 mb-8">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted">Credits → 100</span>
+            <span className="text-sm font-bold text-maroon">{creditProgress.balance} / 100</span>
+          </div>
+          <div className="w-full bg-parchment rounded-full h-2">
+            <div className="bg-maroon h-2 rounded-full" style={{ width: `${Math.min(100, creditProgress.balance)}%` }} />
+          </div>
+          <p className="text-xs text-muted mt-2">{creditProgress.nextAction}</p>
+          <div className="flex gap-2 mt-2 flex-wrap">
+            {creditProgress.tiers.map(t => (
+              <span key={t.name} className={`kc-badge ${t.earned?'kc-badge-leaf':'kc-badge-neutral'} text-[11px]`}>{t.name} {t.earned?'✓':`+${t.credits}`}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="text-center mb-10">
         <p className="text-maroon text-xs font-bold uppercase tracking-[0.2em] mb-2">कौशलचक्र</p>
         <h1 className="kc-display text-4xl font-bold text-ink">
@@ -93,8 +127,11 @@ export default function Dashboard() {
         <div className="kc-card p-8 text-center space-y-4">
           <div className="kc-seal mx-auto w-14 h-14 text-maroon text-2xl">↻</div>
           <p className="text-muted text-sm">
-            Meanwhile, <Link to="/skills" className="kc-link">tune your skills</Link> to unlock more cycles, or{' '}
-            <Link to="/credits" className="kc-link">teach now and earn a credit</Link> instead of waiting.
+            {exchangeType==='TASK' ? (
+              <>No task swap found. <Link to="/tasks" className="kc-link">Browse tasks</Link> or <Link to="/tasks" className="kc-link">post one</Link> to get work done.</>
+            ) : (
+              <>Meanwhile, <Link to="/skills" className="kc-link">tune your skills</Link> to unlock more cycles, or{' '}<Link to="/credits" className="kc-link">teach now and earn a credit</Link> instead of waiting.</>
+            )}
           </p>
           <button onClick={runMatching} disabled={busy} className="kc-btn">
             {busy ? 'Searching for cycles…' : 'Run matching now'}
