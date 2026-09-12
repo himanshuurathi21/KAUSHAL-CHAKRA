@@ -79,14 +79,8 @@ export default function Navbar() {
   return (
     <header className="bg-card/95 backdrop-blur border-b border-line sticky top-0 z-20">
       <div className={`max-w-5xl mx-auto px-4 py-3 flex items-center ${user ? 'justify-between' : 'justify-center'}`}>
-        <Link to="/" className="flex items-center gap-2.5">
-          <img src="/k-logo.png" alt="KaushalChakra" className="w-9 h-9 rounded-xl object-contain bg-white p-1 shadow-sm" />
-          <span className="leading-tight text-center">
-            <span className="kc-display block font-bold text-ink text-lg tracking-tight text-center">
-              KaushalChakra
-            </span>
-            <span className="block text-[11px] text-muted tracking-wide text-center">trade skills, not money</span>
-          </span>
+        <Link to="/" className="flex items-center">
+          <img src="/k-logo.png" alt="KaushalChakra" className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl object-contain bg-white p-1 shadow-sm border border-line" />
         </Link>
 
         {user && (
