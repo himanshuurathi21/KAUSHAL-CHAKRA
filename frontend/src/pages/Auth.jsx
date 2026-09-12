@@ -36,9 +36,7 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-paper">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="kc-seal w-16 h-16 mx-auto mb-4 text-maroon text-2xl font-black">
-            K
-          </div>
+          <img src="/k-logo.png" alt="KaushalChakra Logo" className="w-20 h-20 mx-auto mb-4 object-contain bg-white rounded-2xl p-2 shadow-sm border border-line" />
           <h1 className="kc-display text-4xl font-bold text-ink">
             KaushalChakra
           </h1>
