@@ -124,8 +124,8 @@ export default function Auth() {
             <p className="text-muted text-xs">Get matched in fair multi-person cycles.</p>
           </div>
 
-          <div className="kc-card p-7 sm:p-8 lg:p-8 shadow-sm min-h-[520px] flex flex-col justify-center">
-            <div className="mb-6">
+          <div className="kc-card p-7 sm:p-8 lg:p-8 shadow-sm min-h-[540px] flex flex-col">
+            <div className="mb-6 pt-1">
               <h2 className="kc-display text-xl font-bold text-ink">
                 {mode === 'login' ? 'Welcome back' : 'Create account'}
               </h2>
