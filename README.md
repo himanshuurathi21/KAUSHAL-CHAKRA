@@ -159,8 +159,9 @@ frontend/
   src/pages/                  # Auth, Dashboard, SetupSkills, MatchReview, Exchanges, Admin,
                               # Credits, Verify, Tasks, TaskSwapReview, Reports, Privacy, Terms, Account
   src/components/             # Navbar, CycleChain, SkillPicker, ReportButton
-  src/api/client.js           # axios (cookie auth, 401 bounce)
+  src/api/client.js           # axios (cookie auth, 401 bounce, GET retry on cold start)
   src/context/AuthContext.jsx # session restore via /auth/me
+  src/utils/ratings.js        # pure rating helpers + vitest suite (`npm test`)
 ```
 
 ## Notes
