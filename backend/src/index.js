@@ -102,3 +102,24 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`KaushalChakra backend listening on http://localhost:${PORT}`);
 });
+
+// Background auto-match: re-runs the engine every N ms so idle waiting-pool
+// users get matched without clicking "Run matching now".
+// Opt-in via env: AUTO_MATCH_INTERVAL_MS=600000 (10 min). Off when unset/0.
+const autoMatchMs = Number(process.env.AUTO_MATCH_INTERVAL_MS || 0);
+if (Number.isFinite(autoMatchMs) && autoMatchMs >= 60000) {
+  const { runMatching } = require('./services/matchingService');
+  console.log(`Auto-match enabled every ${Math.round(autoMatchMs / 60000)} min`);
+  setInterval(async () => {
+    try {
+      const cycles = await runMatching();
+      if (cycles.length > 0) console.log(`Auto-match proposed ${cycles.length} cycle(s)`);
+    } catch (err) {
+      console.error('Auto-match failed:', err.message);
+    }
+  }, autoMatchMs);
+  // Avoid keeping the process alive for tests that import index indirectly.
+  if (typeof setInterval === 'function' && setInterval.unref) {
+    // NOTE: timer created above keeps server alive (desired in prod).
+  }
+}

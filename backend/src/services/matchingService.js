@@ -169,7 +169,20 @@ async function runMatching() {
         tx
       );
 
-      const cycles = matchUsers(data.users, {
+      // Fairness: input order biases the greedy pick toward low user ids
+      // (DB returns id-asc, DFS starts there). Shuffle per run so equal
+      // (length, score) ties rotate winners over time. Engine unit tests call
+      // matchUsers() directly and stay deterministic; only the DB path shuffles.
+      // Disable with MATCH_SHUFFLE=0 (e.g. reproducible viva demo).
+      const usersForMatch = [...data.users];
+      if (process.env.MATCH_SHUFFLE !== '0') {
+        for (let i = usersForMatch.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [usersForMatch[i], usersForMatch[j]] = [usersForMatch[j], usersForMatch[i]];
+        }
+      }
+
+      const cycles = matchUsers(usersForMatch, {
         blockedEdges: data.blockedEdges,
         skipUserIds,
         levelScore: levelScoreFor(data),

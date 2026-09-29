@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
@@ -21,9 +23,19 @@ export default function Dashboard() {
     api.get('/credits/progress').then(({ data }) => setCreditProgress(data)).catch(() => {});
   }, []);
 
+  // Prefer the DB-backed preference; fall back to localStorage for first run.
   useEffect(() => {
-    localStorage.setItem('kc_exchangeType', exchangeType);
-  }, [exchangeType]);
+    if (user?.preferredExchangeType && user.preferredExchangeType !== exchangeType) {
+      setExchangeType(user.preferredExchangeType);
+      localStorage.setItem('kc_exchangeType', user.preferredExchangeType);
+    }
+  }, [user?.preferredExchangeType]);
+
+  const changeExchangeType = (next) => {
+    setExchangeType(next);
+    localStorage.setItem('kc_exchangeType', next);
+    api.put('/profile/preference', { preferredExchangeType: next }).catch(() => {});
+  };
 
   const runMatching = async () => {
     setBusy(true);
@@ -66,11 +78,11 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
-      {/* Exchange type toggle — Phase 1 */}
+      {/* Exchange type toggle — persisted to DB via /profile/preference */}
       <div className="flex justify-center mb-6">
         <div className="inline-flex bg-parchment rounded-full p-1 border border-line">
-          <button onClick={() => setExchangeType('SKILL')} className={`px-5 py-2 rounded-full text-sm font-semibold ${exchangeType==='SKILL'?'bg-maroon text-white':'text-muted'}`}>Learn a Skill</button>
-          <button onClick={() => setExchangeType('TASK')} className={`px-5 py-2 rounded-full text-sm font-semibold ${exchangeType==='TASK'?'bg-maroon text-white':'text-muted'}`}>Get a Task Done</button>
+          <button onClick={() => changeExchangeType('SKILL')} className={`px-5 py-2 rounded-full text-sm font-semibold ${exchangeType==='SKILL'?'bg-maroon text-white':'text-muted'}`}>Learn a Skill</button>
+          <button onClick={() => changeExchangeType('TASK')} className={`px-5 py-2 rounded-full text-sm font-semibold ${exchangeType==='TASK'?'bg-maroon text-white':'text-muted'}`}>Get a Task Done</button>
         </div>
       </div>
 
@@ -124,20 +136,31 @@ export default function Dashboard() {
       )}
 
       {status.status === 'waiting' && (
-        <div className="kc-card p-8 text-center space-y-4">
-          <div className="kc-seal mx-auto w-14 h-14 text-maroon text-2xl">↻</div>
-          <p className="text-muted text-sm">
-            {exchangeType==='TASK' ? (
-              <>No task swap found. <Link to="/tasks" className="kc-link">Browse tasks</Link> or <Link to="/tasks" className="kc-link">post one</Link> to get work done.</>
-            ) : (
-              <>Meanwhile, <Link to="/skills" className="kc-link">tune your skills</Link> to unlock more cycles, or{' '}<Link to="/credits" className="kc-link">teach now and earn a credit</Link> instead of waiting.</>
+        <div className="space-y-6">
+          <div className="kc-card p-8 text-center space-y-4">
+            <div className="kc-seal mx-auto w-14 h-14 text-maroon text-2xl">↻</div>
+            <p className="text-muted text-sm">
+              {exchangeType==='TASK' ? (
+                <>No task swap found. <Link to="/tasks" className="kc-link">Browse tasks</Link> or <Link to="/tasks" className="kc-link">post one</Link> to get work done.</>
+              ) : (
+                <>Meanwhile, <Link to="/skills" className="kc-link">tune your skills</Link> to unlock more cycles, or{' '}<Link to="/credits" className="kc-link">teach now and earn a credit</Link> instead of waiting.</>
+              )}
+            </p>
+            <button onClick={runMatching} disabled={busy} className="kc-btn">
+              {busy ? 'Searching for cycles…' : 'Run matching now'}
+            </button>
+            {error && (
+              <p className="kc-alert-error">{error}</p>
             )}
-          </p>
-          <button onClick={runMatching} disabled={busy} className="kc-btn">
-            {busy ? 'Searching for cycles…' : 'Run matching now'}
-          </button>
-          {error && (
-            <p className="kc-alert-error">{error}</p>
+          </div>
+          {status.lastCompleted && (
+            <div className="kc-card p-6 text-center space-y-3 border-dashed">
+              <p className="text-xs font-bold uppercase tracking-wide text-muted">Last exchange completed — rate your partners</p>
+              <p className="text-sm text-ink">
+                {status.lastCompleted.myParticipant.teachesSkill.name} → {status.lastCompleted.myParticipant.learnsSkill.name}
+              </p>
+              <Link to={`/match/${status.lastCompleted.cycle.id}`} className="kc-btn">View last exchange</Link>
+            </div>
           )}
         </div>
       )}

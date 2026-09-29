@@ -43,7 +43,9 @@ router.post("/credits/sessions/:id/accept", requireAuth, acceptSession);
 router.post("/credits/sessions/:id/decline", requireAuth, declineSession);
 router.post("/credits/sessions/:id/complete", requireAuth, completeSession);
 
-// Skill verification (old)
+// Skill verification — CANONICAL (used by UI + smoke tests):
+//   SkillVerification table via verifyController (quiz + certificate in one
+//   place, with claimedLevel + admin review). Keep these stable.
 router.get("/verify/quiz/:skillId", requireAuth, getQuizQuestions);
 router.post("/verify/quiz/:skillId/submit", requireAuth, submitOldQuiz);
 router.post("/verify/certificate", requireAuth, submitOldCertificate);
@@ -51,7 +53,10 @@ router.get("/verify/mine", requireAuth, getMyVerifications);
 router.get("/verify/pending", requireAuth, requireAdmin, getPending);
 router.post("/verify/:id/review", requireAuth, requireAdmin, reviewVerification);
 
-// New skill verification (QuizQuestion/Certificate)
+// Experimental alt tables (QuizQuestion/QuizAttempt + Certificate) — NOT used
+// by the UI. Kept for viva comparison; matchController.enrichCycles already
+// merges all three sources into `verifiedLevels`, so badges stay correct
+// whichever path wrote them. TODO post-viva: pick one table set and migrate.
 router.get("/skills/:id/quiz", requireAuth, getQuiz);
 router.post("/skills/:id/quiz/submit", requireAuth, submitQuiz);
 router.post("/certificates", requireAuth, createCertificate);

@@ -100,6 +100,14 @@ async function updateSkills(req, res, next) {
     }
 
     const userId = req.userId;
+    // Optional exchange-type preference (SKILL | TASK) — stored on the user
+    // so it survives across browsers (Dashboard previously used localStorage only).
+    const { preferredExchangeType = null } = req.body || {};
+    if (preferredExchangeType !== null && preferredExchangeType !== undefined) {
+      if (!['SKILL', 'TASK'].includes(preferredExchangeType)) {
+        return res.status(400).json({ error: 'preferredExchangeType must be SKILL or TASK' });
+      }
+    }
     // Verification enforcement: INTERMEDIATE requires quiz, EXPERT requires verified certificate
     // Check both new (QuizAttempt/Certificate) and legacy (SkillVerification) so neither path blocks valid users
     for (const { id, level } of offeredDeduped) {
@@ -133,6 +141,9 @@ async function updateSkills(req, res, next) {
     if (slotsToUpdate !== null) {
       ops.push(prisma.user.update({ where: { id: userId }, data: { availabilitySlots: slotsToUpdate } }));
     }
+    if (preferredExchangeType !== null && preferredExchangeType !== undefined) {
+      ops.push(prisma.user.update({ where: { id: userId }, data: { preferredExchangeType } }));
+    }
     await prisma.$transaction(ops);
 
     // Skill changes may unlock new cycles for everyone — re-run matching
@@ -144,4 +155,21 @@ async function updateSkills(req, res, next) {
   }
 }
 
-module.exports = { getSkills, getProfile, updateSkills };
+/** PUT /api/profile/preference — save SKILL|TASK toggle without touching skills. */
+async function updatePreference(req, res, next) {
+  try {
+    const { preferredExchangeType } = req.body || {};
+    if (!['SKILL', 'TASK'].includes(preferredExchangeType)) {
+      return res.status(400).json({ error: 'preferredExchangeType must be SKILL or TASK' });
+    }
+    const user = await prisma.user.update({
+      where: { id: req.userId },
+      data: { preferredExchangeType },
+    });
+    res.json({ ok: true, preferredExchangeType: user.preferredExchangeType });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getSkills, getProfile, updateSkills, updatePreference };

@@ -124,6 +124,8 @@ model UserWantedSkill {
 model MatchCycle {
   id           Int                     @id @default(autoincrement())
   // proposed -> confirmed -> completed | rejected
+  // TODO post-viva: convert to enum CycleStatus (see src/lib/statuses.js).
+  // Kept as String to avoid a breaking migration before the demo.
   status       String                  @default("proposed")
   completedAt  DateTime?
   createdAt    DateTime                @default(now())
@@ -272,6 +274,7 @@ model CreditSession {
   learnerId   Int
   skillId     Int?
   createdBy   String // teacher | learner
+  // TODO post-viva: enum CreditSessionStatus (see src/lib/statuses.js).
   status      String   @default("proposed") // proposed -> active -> completed | declined
   type        String   @default("SKILL") // SKILL | TASK
   taskId      Int?
@@ -384,6 +387,7 @@ model TaskSwap {
   helperId Int?
   requestedTaskId Int
   offeredTaskId Int?
+  // TODO post-viva: enum TaskSwapStatus (see src/lib/statuses.js).
   status String @default("requested") // requested -> accepted -> in_progress -> submitted -> completed | rejected | cancelled
   requestedDeliverableLink String?
   offeredDeliverableLink String?

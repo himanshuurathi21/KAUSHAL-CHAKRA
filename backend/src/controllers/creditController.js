@@ -297,9 +297,15 @@ async function completeSession(req, res, next) {
         // Ensure poster still has enough balance (poster could have spent since claim)
         const posterBal = await prisma.credit.aggregate({ where: { userId: session.learnerId }, _sum: { delta: true } });
         if ((posterBal._sum.delta ?? 0) < amount) {
-          // Not enough credits — revert completion and inform
-          await prisma.creditSession.update({ where: { id: session.id }, data: { status: 'active', completedAt: null } });
-          return res.status(400).json({ error: `Poster has insufficient credits to pay ${amount} (has ${posterBal._sum.delta ?? 0})` });
+          // Not enough credits — revert to active AND clear this caller's
+          // DoneAt. Without clearing, both DoneAts stay set while status is
+          // active, so the next `complete` call would instantly re-flip to
+          // completed and loop on the same error.
+          await prisma.creditSession.update({
+            where: { id: session.id },
+            data: { status: 'active', completedAt: null, [sideField]: null },
+          });
+          return res.status(400).json({ error: `Poster has insufficient credits to pay ${amount} (has ${posterBal._sum.delta ?? 0}). Top up credits and mark done again.` });
         }
         // Deduct from poster, credit helper
         await prisma.$transaction(async (tx) => {

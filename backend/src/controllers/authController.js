@@ -123,6 +123,7 @@ function publicUser(user) {
     isAdmin: user.isAdmin,
     createdAt: user.createdAt,
     availabilitySlots: user.availabilitySlots || [],
+    preferredExchangeType: user.preferredExchangeType || null,
     offered: (user.offered ?? []).map((o) => ({ ...o.skill, level: o.level, verificationStatus: o.verificationStatus || 'NONE' })),
     wanted: (user.wanted ?? []).map((w) => ({ ...w.skill, level: w.level })),
   };

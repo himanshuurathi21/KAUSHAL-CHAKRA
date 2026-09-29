@@ -165,12 +165,15 @@ async function approveSwap(req, res, next) {
     if (swap.status !== 'submitted' && swap.status !== 'in_progress') return res.status(400).json({ error: `Cannot approve, status is ${swap.status}` });
 
     const isRequester = swap.requesterId === req.userId;
+    // One-way swap (no offeredTask): only the requester has anything to
+    // approve (the helper's deliverable). The helper approving would write
+    // offeredApprovedAt which is never required -> wasted approval that
+    // leaves the swap stuck. Reject it explicitly.
+    if (!swap.offeredTaskId && !isRequester) {
+      return res.status(400).json({ error: 'One-way swaps only need the requester to approve' });
+    }
     // Requester approves helper's work (requested task), helper approves requester's work (offered task)
     const approveField = isRequester ? 'requestedApprovedAt' : 'offeredApprovedAt';
-    // If offeredTask is null (one-way), helper approving is not needed
-    if (!swap.offeredTaskId && !isRequester) {
-      // Helper has no offered task to approve, just approve requested
-    }
 
     // Check if side already approved
     if (swap[approveField]) return res.status(400).json({ error: 'Already approved this side' });

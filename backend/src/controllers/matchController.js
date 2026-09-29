@@ -1,6 +1,7 @@
 const prisma = require('../lib/prisma');
 const { runMatching } = require('../services/matchingService');
 const { notifyMany } = require('../services/notificationService');
+const { ACTIVE_CYCLE_STATUSES } = require('../lib/statuses');
 
 const cycleInclude = {
   participants: {
@@ -32,7 +33,11 @@ async function runMatch(req, res, next) {
 
 /**
  * GET /api/match/status — dashboard state for the current user:
- *   { status: 'no-profile' | 'waiting' | 'proposed' | 'confirmed', cycle?, exchange? }
+ *   { status: 'no-profile' | 'waiting' | 'proposed' | 'confirmed' | 'completed',
+ *     cycle?, myParticipant?, lastCompleted? }
+ * `completed` is kept for backwards compat when the completed cycle is the
+ * most recent participation; otherwise we return `waiting` + `lastCompleted`
+ * so the dashboard never gets stuck on an old completion.
  */
 async function getMyStatus(req, res, next) {
   try {
@@ -58,7 +63,7 @@ async function getMyStatus(req, res, next) {
     }
 
     // Most recent non-rejected cycle first
-    const active = user.participants.find((p) => ['proposed', 'confirmed'].includes(p.cycle.status));
+    const active = user.participants.find((p) => ACTIVE_CYCLE_STATUSES.includes(p.cycle.status));
     if (active) {
       const cycle = await enrichCycle(active.cycle);
       return res.json({
@@ -68,14 +73,25 @@ async function getMyStatus(req, res, next) {
       });
     }
 
-    // No open proposal, but a completed exchange exists -> show it
-    const done = user.participants.find((p) => p.cycle.status === 'completed');
-    if (done) {
-      const cycle = await enrichCycle(done.cycle);
+    // No open proposal. If the user completed something, surface the most
+    // recent completion alongside `waiting` so the dashboard can show both
+    // the waiting-pool CTA and a "rate your last partners" card.
+    // Legacy clients that only look at `status === 'completed'` still work:
+    // when the newest participation overall is a completion we keep
+    // `status: 'completed'` with `cycle`; otherwise `waiting` + `lastCompleted`.
+    const doneList = user.participants.filter((p) => p.cycle.status === 'completed');
+    if (doneList.length > 0) {
+      const newest = user.participants[0];
+      const isNewestCompleted = newest.cycle.status === 'completed';
+      const target = isNewestCompleted ? newest : doneList[0];
+      const cycle = await enrichCycle(target.cycle);
+      const myParticipant = cycle.participants.find((p) => p.userId === req.userId);
+      if (isNewestCompleted) {
+        return res.json({ status: 'completed', cycle, myParticipant });
+      }
       return res.json({
-        status: 'completed',
-        cycle,
-        myParticipant: cycle.participants.find((p) => p.userId === req.userId),
+        status: 'waiting',
+        lastCompleted: { cycle, myParticipant },
       });
     }
 
@@ -408,22 +424,27 @@ async function enrichCycles(cycles) {
 
   const participantRows = present.flatMap((c) => c.participants);
   const hasRows = participantRows.length > 0;
+  // IN-lists (not OR-of-pairs): one param per id, no Postgres param blowup
+  // on large pages. Over-fetches cross-pairs, filtered by levelOf() below.
+  const userIds = [...new Set(participantRows.map((p) => p.userId))];
+  const teachesSkillIds = [...new Set(participantRows.map((p) => p.teachesSkillId))];
+  const learnsSkillIds = [...new Set(participantRows.map((p) => p.learnsSkillId))];
 
   const [offeredLevels, wantedLevels, aggRows, verifiedRows, quizPassedRows, certRows] = await Promise.all([
     hasRows
       ? prisma.userOfferedSkill.findMany({
-          where: { OR: participantRows.map((p) => ({ userId: p.userId, skillId: p.teachesSkillId })) },
+          where: { userId: { in: userIds }, skillId: { in: teachesSkillIds } },
         })
       : [],
     hasRows
       ? prisma.userWantedSkill.findMany({
-          where: { OR: participantRows.map((p) => ({ userId: p.userId, skillId: p.learnsSkillId })) },
+          where: { userId: { in: userIds }, skillId: { in: learnsSkillIds } },
         })
       : [],
     hasRows
       ? prisma.rating.groupBy({
           by: ['rateeId'],
-          where: { rateeId: { in: participantRows.map((p) => p.userId) } },
+          where: { rateeId: { in: userIds } },
           _avg: { score: true },
           _count: { _all: true },
         })
@@ -431,7 +452,7 @@ async function enrichCycles(cycles) {
     hasRows
       ? prisma.skillVerification.findMany({
           where: {
-            userId: { in: participantRows.map((p) => p.userId) },
+            userId: { in: userIds },
             status: 'approved',
           },
           select: { userId: true, skillId: true, claimedLevel: true },
@@ -439,13 +460,13 @@ async function enrichCycles(cycles) {
       : [],
     hasRows
       ? prisma.quizAttempt.findMany({
-          where: { userId: { in: participantRows.map((p) => p.userId) }, passed: true },
+          where: { userId: { in: userIds }, passed: true },
           select: { userId: true, skillId: true },
         })
       : [],
     hasRows
       ? prisma.certificate.findMany({
-          where: { userId: { in: participantRows.map((p) => p.userId) }, status: 'VERIFIED' },
+          where: { userId: { in: userIds }, status: 'VERIFIED' },
           select: { userId: true, skillId: true },
         })
       : [],

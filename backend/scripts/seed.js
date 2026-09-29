@@ -90,9 +90,17 @@ async function main() {
 
   console.log(`  ${SKILLS.length} skills ready.`);
 
-  console.log('Seeding demo users...');
-  const passwordHash = await bcrypt.hash('password123', 10);
+  const skipDemo = process.argv.includes('--prod-safe') || process.env.SKIP_DEMO_SEED === '1';
   const freshDatabase = (await prisma.user.count()) === 0;
+  const allowDemoReset = freshDatabase || process.env.SEED_FRESH === '1';
+
+  if (skipDemo) {
+    console.log('Skipping demo users (--prod-safe / SKIP_DEMO_SEED=1) — taxonomy + quiz only.');
+  } else if (!allowDemoReset) {
+    console.log('Database already has users — skipping demo-user reset (set SEED_FRESH=1 to force).');
+  } else {
+    console.log('Seeding demo users...');
+    const passwordHash = await bcrypt.hash('password123', 10);
 
   for (const demo of DEMO_USERS) {
     // Idempotent: wipe the user's skills first, then recreate
@@ -132,6 +140,7 @@ async function main() {
   }
 
   console.log(`  ${DEMO_USERS.length} demo users seeded (password: password123).`);
+  } // end allowDemoReset
 
   // Clear old match + feature data so a fresh seed always starts clean.
   // On an existing database this is skipped unless SEED_FRESH=1 is set —

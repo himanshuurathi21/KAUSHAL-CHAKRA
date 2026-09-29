@@ -8,6 +8,10 @@ if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET is not set. Add it to your .env (or environment) before starting.');
   process.exit(1);
 }
+// Warn on the committed placeholder / short secrets — dev-only, never prod.
+if (JWT_SECRET === 'change-me-to-a-long-random-string' || JWT_SECRET.length < 32) {
+  console.warn('WARNING: JWT_SECRET looks like a dev placeholder or is <32 chars. Generate a long random secret for any shared/deploy environment.');
+}
 
 // 7 days, in seconds — matches the JWT expiry.
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60;

@@ -1,5 +1,5 @@
 const prisma = require('../lib/prisma');
-const { loadGraphData } = require('../services/matchingService');
+const { loadGraphData, loadActiveUserIds } = require('../services/matchingService');
 const { matchUsers } = require('../services/matchingEngine');
 
 /**
@@ -41,16 +41,22 @@ async function getStats(req, res, next) {
       if (size >= 2 && size <= 5) sizeCounts[size]++;
     }
 
-    // Cyclic vs direct-swap-only comparison on the current graph
+    // Cyclic vs direct-swap-only comparison on the matchable pool only
+    // (busy users in proposed/confirmed cycles are excluded — otherwise the
+    // headline number overcounts users who can't be matched right now).
     const data = await loadGraphData();
-    const cyclic = matchUsers(data.users, { blockedEdges: data.blockedEdges });
-    const directOnly = matchUsers(data.users, { blockedEdges: data.blockedEdges, maxLength: 2 });
+    const skipUserIds = await loadActiveUserIds();
+    const cyclic = matchUsers(data.users, { blockedEdges: data.blockedEdges, skipUserIds });
+    const directOnly = matchUsers(data.users, { blockedEdges: data.blockedEdges, skipUserIds, maxLength: 2 });
 
     const cyclicUserIds = new Set(cyclic.flatMap((c) => c.userIds));
     const directUserIds = new Set(directOnly.flatMap((c) => c.userIds));
+    // Set difference (not size subtraction): direct matches are not always a
+    // subset of cyclic matches under greedy selection.
+    let onlyViaCycles = 0;
+    for (const id of cyclicUserIds) if (!directUserIds.has(id)) onlyViaCycles++;
     const matchedCyclically = cyclicUserIds.size;
     const matchedDirectly = directUserIds.size;
-    const onlyViaCycles = cyclicUserIds.size - directUserIds.size;
     const pctOnlyViaCycles =
       matchedCyclically > 0 ? Math.round((onlyViaCycles / matchedCyclically) * 100) : 0;
 

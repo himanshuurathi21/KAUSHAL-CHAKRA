@@ -11,7 +11,9 @@ services:
     plan: free
     rootDir: backend
     buildCommand: npm ci && npx prisma generate && cd ../frontend && npm ci && npm run build && cd ../backend
-    startCommand: npx prisma migrate deploy && node scripts/seed.js && node src/index.js
+    # --prod-safe seeds taxonomy + quiz questions only; demo users are never
+    # reset on deploy (prevents wiping real progress / resetting passwords).
+    startCommand: npx prisma migrate deploy && node scripts/seed.js --prod-safe && node src/index.js
     healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL

@@ -40,8 +40,8 @@ cd backend
 cp .env.example .env          # adjust credentials if needed
 npm install
 npx prisma migrate dev        # applies migrations
-npm run seed                  # 14 demo users + skill taxonomy
-npm test                      # 29 unit tests (pure matching engine + credits + ratings)
+npm run seed                  # 14 demo users + skill taxonomy + quiz bank
+npm test                      # vitest: matchingEngine + credits + ratings + verification + auth
 npm run dev                   # http://localhost:4000
 
 # 3. Frontend (new terminal)
@@ -50,46 +50,58 @@ npm install
 npm run dev                   # http://localhost:5173 (proxies /api to :4000)
 ```
 
-### Demo accounts (all password: `password123`)| Email | Role |
+### Demo accounts (all password: `password123`)
+
+| Email | Role |
 |---|---|
-| `aarav@demo.com` | In the 3-person cycle (Aarav → Simran → Rohan) |
-| `priya@demo.com` | **Admin** — has access to `/admin` analytics |
+| `aarav@demo.com` | 3-person cycle (Aarav → Simran → Rohan) |
+| `simran@demo.com` / `rohan@demo.com` | Other members of the 3-way cycle |
+| `priya@demo.com` | **Admin** — `/admin` analytics + 4-way cycle (Priya → Neha → Vikram → Ananya) |
 | `kunal@demo.com` / `meera@demo.com` | Direct 2-person swap pair |
 | `ishaan@demo.com` | Waiting pool — try the credit fallback (`/credits`) |
 | `vihaan@demo.com` / `riya@demo.com` | Credit-session partners for Ishaan |
 
 Suggested demo flow:
 
-1. Log in as **Aarav** → accept the proposed 3-way cycle → it confirms.
+1. Log in as **Aarav** → accept the proposed 3-way cycle.
 2. As **Simran** and **Rohan**, accept too → cycle confirms → chat + contact info unlock.
 3. Everyone marks "session complete" → cycle becomes **Completed** → rate partners.
+   Dashboard then shows `waiting` + a “last exchange completed” card (no stuck state).
 4. Log in as **Priya** → **Admin** page shows the cycle-size bar chart and the
    headline number: what % of matched users would NOT match with 1-to-1 swaps only.
 5. Log in as **Ishaan** → **Credits** → teach now (Vihaan wants Physics Tutoring) →
    complete → earn 1 credit → redeem it to learn Piano from Riya.
+6. **Tasks**: post a task (`/tasks`), request a swap, submit deliverable, approve
+   both sides → both earn credits. One-way swaps need only the requester’s approval.
 
 ## API overview
 
 ```
-POST /api/auth/signup | /login           GET /api/auth/me
-GET  /api/skills                          PUT /api/profile/skills
-POST /api/match/run                       GET /api/match/status
-GET  /api/match/cycle/:id                 POST /api/match/cycle/:id/accept | /reject
-GET  /api/match/exchanges?limit=&offset=     POST /api/cycles/:id/complete
-POST /api/cycles/:id/messages             GET  /api/cycles/:id/messages
-POST /api/ratings                         GET  /api/users/:id/ratings
-GET  /api/notifications                   POST /api/notifications/read-all
+POST /api/auth/signup | /login | /logout  GET /api/auth/me
+GET  /api/skills                           PUT /api/profile/skills
+PUT  /api/profile/preference               GET /api/profile
+POST /api/match/run                        GET /api/match/status
+GET  /api/match/cycle/:id                  POST /api/match/cycle/:id/accept | /reject
+GET  /api/match/exchanges?limit=&offset=   POST /api/cycles/:id/complete
+POST /api/cycles/:id/messages              GET  /api/cycles/:id/messages?sinceId=
+POST /api/ratings                          GET  /api/users/:id/ratings
+GET  /api/notifications                    POST /api/notifications/read-all
 POST /api/notifications/:id/read
-GET  /api/admin/stats                     (admin only)
-GET  /api/credits                         POST /api/credits/teach
-POST /api/credits/redeem                  POST /api/credits/sessions/:id/complete
-GET  /api/verify/quiz/:skillId            POST /api/verify/quiz/:skillId/submit
-POST /api/verify/certificate              GET  /api/verify/mine
-GET  /api/verify/pending                  (admin only)
-POST /api/verify/:id/review               (admin only)
+GET  /api/admin/stats  | /admin/skill-gaps (admin only)
+GET  /api/credits | /credits/progress      POST /api/credits/teach | /redeem
+POST /api/credits/sessions/:id/accept|decline|complete
+GET  /api/verify/quiz/:skillId             POST /api/verify/quiz/:skillId/submit
+POST /api/verify/certificate               GET  /api/verify/mine
+GET  /api/verify/pending (admin)           POST /api/verify/:id/review (admin)
+POST /api/tasks  | GET /api/tasks          POST /api/tasks/:id/claim
+POST /api/task-swaps | GET /api/task-swaps GET /api/task-swaps/:id
+POST /api/task-swaps/:id/accept|reject|submit|approve|cancel
+GET+POST /api/task-swaps/:id/messages
+POST /api/reports  GET /api/admin/reports (admin)  POST /api/admin/reports/:id/resolve (admin)
+POST /api/certificates  GET /api/debug/graph (admin)
 ```
 
-All endpoints except signup/login require `Authorization: Bearer <jwt>`.
+Auth: httpOnly `kc_session` cookie (browser) or `Authorization: Bearer <jwt>` (scripts).
 
 ## Running with Docker (optional)
 
@@ -129,16 +141,24 @@ Resulting URL:
 
 ```
 backend/
-  prisma/schema.prisma        # User, Skill, MatchCycle, Rating, Message, Notification, Credit...
-  scripts/seed.js             # taxonomy + 14 demo users (Priya is admin)
+  prisma/schema.prisma        # User, Skill, MatchCycle(+Participant), BlockedEdge, Rating,
+                              # Message, Notification, Credit(+Session), SkillVerification,
+                              # QuizQuestion/Attempt, Certificate, Report, Task, TaskSwap
+  scripts/seed.js             # taxonomy + 14 demo users (Priya is admin); --prod-safe skips demo reset
   scripts/smoke.js            # automated end-to-end demo over HTTP
-  src/controllers/            # route handlers
-  src/services/               # matchingEngine (pure), matchingService, notificationService, creditService
-  src/middleware/auth.js      # requireAuth + requireAdmin
-  tests/                      # vitest unit tests
+  src/controllers/            # auth, profile, match, chat, rating, notification, credit,
+                              # verify(+quiz+certificate), task, taskSwap, report, admin
+  src/services/               # matchingEngine (pure), matchingService, notificationService,
+                              # creditService, creditRewardService, verificationService, quizBank
+  src/lib/statuses.js         # canonical status constants (String cols until enum migration)
+  src/middleware/auth.js      # requireAuth + requireAdmin (cookie + Bearer)
+  tests/                      # vitest: matchingEngine, creditService, rating, verification, auth
 frontend/
-  src/pages/                  # Auth, Dashboard, SetupSkills, MatchReview, Exchanges, Admin, Credits
-  src/components/             # Navbar, CycleChain, SkillPicker
+  src/pages/                  # Auth, Dashboard, SetupSkills, MatchReview, Exchanges, Admin,
+                              # Credits, Verify, Tasks, TaskSwapReview, Reports, Privacy, Terms
+  src/components/             # Navbar, CycleChain, SkillPicker, ReportButton
+  src/api/client.js           # axios (cookie auth, 401 bounce)
+  src/context/AuthContext.jsx # session restore via /auth/me
 ```
 
 ## Notes
