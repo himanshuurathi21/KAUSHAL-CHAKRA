@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -38,10 +38,17 @@ export default function Admin() {
     loadUsers('');
   }, []);
 
+  const searchTimer = useRef(null);
   const loadUsers = (q) => {
     api.get('/admin/users', { params: { q, limit: 20 } })
       .then(({ data }) => setUsers(data.users))
       .catch(() => {});
+  };
+  // Debounced search — one request per pause, not per keystroke.
+  const onSearch = (q) => {
+    setUserQuery(q);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => loadUsers(q), 300);
   };
 
   const setStatus = (id, patch) => {
@@ -160,7 +167,7 @@ export default function Admin() {
             className="kc-input flex-1"
             placeholder="Search name or email…"
             value={userQuery}
-            onChange={(e) => { setUserQuery(e.target.value); loadUsers(e.target.value); }}
+            onChange={(e) => onSearch(e.target.value)}
           />
         </div>
         {userMsg && <p className="kc-alert-error">{userMsg}</p>}

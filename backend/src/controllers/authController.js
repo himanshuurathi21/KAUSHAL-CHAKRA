@@ -103,8 +103,13 @@ async function changePassword(req, res, next) {
     if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
       return res.status(400).json({ error: 'currentPassword and newPassword are required' });
     }
-    const checked = checkCredentials('user@placeholder.local', newPassword);
-    if (checked.error) return res.status(400).json({ error: checked.error });
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    if (newPassword.length > 72) {
+      // bcrypt silently truncates past 72 bytes — reject instead of weakening.
+      return res.status(400).json({ error: 'Password must be at most 72 characters' });
+    }
 
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user) return res.status(401).json({ error: 'User no longer exists' });

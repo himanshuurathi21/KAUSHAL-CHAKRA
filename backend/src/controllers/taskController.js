@@ -15,6 +15,20 @@ async function createTask(req, res, next) {
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (user.creditsFrozen) return res.status(403).json({ error: "Your credits are frozen due to a report" });
     if (!user.isActive) return res.status(403).json({ error: "Your account is deactivated" });
+    let requiredSkillId = null;
+    if (req.body.requiredSkillId !== undefined && req.body.requiredSkillId !== null && req.body.requiredSkillId !== '') {
+      requiredSkillId = Number(req.body.requiredSkillId);
+      if (!Number.isInteger(requiredSkillId) || requiredSkillId <= 0) {
+        return res.status(400).json({ error: "requiredSkillId must be a positive integer" });
+      }
+    }
+    let deadline = null;
+    if (req.body.deadline) {
+      deadline = new Date(req.body.deadline);
+      if (Number.isNaN(deadline.getTime())) return res.status(400).json({ error: "deadline must be a valid date" });
+    }
+    if (title.trim().length > 200) return res.status(400).json({ error: "title must be at most 200 characters" });
+    if (description.trim().length > 5000) return res.status(400).json({ error: "description must be at most 5000 characters" });
     const task = await prisma.task.create({
       data: {
         posterId: req.userId,
@@ -23,10 +37,10 @@ async function createTask(req, res, next) {
         category,
         creditValue: cv,
         status: "OPEN",
-        requiredSkillId: req.body.requiredSkillId ? Number(req.body.requiredSkillId) : null,
+        requiredSkillId,
         deliverable: typeof req.body.deliverable === 'string' ? req.body.deliverable.trim().slice(0, 500) : null,
         complexity: ['S','M','L'].includes(req.body.complexity) ? req.body.complexity : 'M',
-        deadline: req.body.deadline ? new Date(req.body.deadline) : null,
+        deadline,
       }
     });
     try {

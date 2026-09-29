@@ -110,6 +110,7 @@ const autoMatchMs = Number(process.env.AUTO_MATCH_INTERVAL_MS || 0);
 if (Number.isFinite(autoMatchMs) && autoMatchMs >= 60000) {
   const { runMatching } = require('./services/matchingService');
   console.log(`Auto-match enabled every ${Math.round(autoMatchMs / 60000)} min`);
+  // The timer intentionally keeps the server process alive (desired in prod).
   setInterval(async () => {
     try {
       const cycles = await runMatching();
@@ -118,8 +119,4 @@ if (Number.isFinite(autoMatchMs) && autoMatchMs >= 60000) {
       console.error('Auto-match failed:', err.message);
     }
   }, autoMatchMs);
-  // Avoid keeping the process alive for tests that import index indirectly.
-  if (typeof setInterval === 'function' && setInterval.unref) {
-    // NOTE: timer created above keeps server alive (desired in prod).
-  }
 }
