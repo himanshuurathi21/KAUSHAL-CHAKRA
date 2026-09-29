@@ -1,17 +1,21 @@
 const prisma = require('../lib/prisma');
 
-/** GET /api/notifications — my notifications, newest first. */
+/** GET /api/notifications?limit=&offset= — my notifications, newest first. */
 async function getMine(req, res, next) {
   try {
-    const [notifications, unreadCount] = await Promise.all([
+    const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const [notifications, unreadCount, total] = await Promise.all([
       prisma.notification.findMany({
         where: { userId: req.userId },
         orderBy: { createdAt: 'desc' },
-        take: 30,
+        take: limit,
+        skip: offset,
       }),
       prisma.notification.count({ where: { userId: req.userId, read: false } }),
+      prisma.notification.count({ where: { userId: req.userId } }),
     ]);
-    res.json({ notifications, unreadCount });
+    res.json({ notifications, unreadCount, total, limit, offset });
   } catch (err) {
     next(err);
   }

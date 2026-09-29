@@ -157,7 +157,7 @@ backend/
   tests/                      # vitest: matchingEngine, creditService, rating, verification, auth
 frontend/
   src/pages/                  # Auth, Dashboard, SetupSkills, MatchReview, Exchanges, Admin,
-                              # Credits, Verify, Tasks, TaskSwapReview, Reports, Privacy, Terms
+                              # Credits, Verify, Tasks, TaskSwapReview, Reports, Privacy, Terms, Account
   src/components/             # Navbar, CycleChain, SkillPicker, ReportButton
   src/api/client.js           # axios (cookie auth, 401 bounce)
   src/context/AuthContext.jsx # session restore via /auth/me
@@ -167,7 +167,9 @@ frontend/
 
 - Matching runs automatically when skills change, when a cycle is rejected,
   and when a cycle completes; the Dashboard also has a manual "Run matching now"
-  button. A cycle whose exact user set completed in the last 24h is never
+  button; set `AUTO_MATCH_INTERVAL_MS=600000` for a 10-min background run.
+  Equal-quality ties are shuffled per run (`MATCH_SHUFFLE=0` for a deterministic demo).
+  A cycle whose exact user set completed in the last 24h is never
   re-proposed (no instant duplicates).
 - A user can be in at most one active cycle at a time; rejected edges are
   blocked so the same swap is never proposed twice.

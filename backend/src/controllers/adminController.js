@@ -140,6 +140,12 @@ async function updateUserStatus(req, res, next) {
       data.isAdmin = req.body.isAdmin;
     }
     if (Object.keys(data).length === 0) return res.status(400).json({ error: 'Nothing to update (isActive, creditsFrozen, isAdmin)' });
+    // Never leave the system with zero admins (lockout with no recovery path
+    // except direct DB access).
+    if (data.isAdmin === false && target.isAdmin) {
+      const adminCount = await prisma.user.count({ where: { isAdmin: true } });
+      if (adminCount <= 1) return res.status(400).json({ error: 'Cannot demote the last admin' });
+    }
     const updated = await prisma.user.update({
       where: { id },
       data,

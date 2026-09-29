@@ -91,7 +91,9 @@ export default function Dashboard() {
         <div className="kc-card p-4 mb-8">
           <div className="flex justify-between items-center mb-2">
             <span className="text-xs font-bold uppercase tracking-wide text-muted">Credits → 100</span>
-            <span className="text-sm font-bold text-maroon">{creditProgress.balance} / 100</span>
+            <span className="text-sm font-bold text-maroon">
+              {creditProgress.balance >= 100 ? `${creditProgress.balance} ✓ goal reached` : `${creditProgress.balance} / 100`}
+            </span>
           </div>
           <div className="w-full bg-parchment rounded-full h-2">
             <div className="bg-maroon h-2 rounded-full" style={{ width: `${Math.min(100, creditProgress.balance)}%` }} />

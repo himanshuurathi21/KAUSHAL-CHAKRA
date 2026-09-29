@@ -18,17 +18,28 @@ export default function Tasks() {
   const [err, setErr] = useState("");
   const [skills, setSkills] = useState([]);
   const [swapOffer, setSwapOffer] = useState({});
+  const [taskTotal, setTaskTotal] = useState(0);
+  const PAGE_SIZE = 20;
 
-  const load = () => {
-    const q = filter ? `?category=${encodeURIComponent(filter)}` : "";
-    api.get(`/tasks${q}`).then(({ data }) => setTasks(data.tasks)).catch(() => {});
-    api.get("/task-swaps").then(({ data }) => setSwaps(data.swaps||[])).catch(()=>{});
-    api.get("/skills").then(({ data }) => setSkills(data.skills||[])).catch(()=>{});
-    if (user?.id) {
-      api.get("/tasks").then(({ data }) => {
-        const mine = data.tasks.filter(t => t.poster.id === user.id);
-        setMyTasks(mine);
-      }).catch(()=>{});
+  const load = (offset = 0, append = false) => {
+    const params = new URLSearchParams({ limit: PAGE_SIZE, offset });
+    if (filter) params.set("category", filter);
+    api.get(`/tasks?${params}`).then(({ data }) => {
+      setTasks((prev) => {
+        const next = append ? [...prev, ...data.tasks] : data.tasks;
+        return [...new Map(next.map((t) => [t.id, t])).values()];
+      });
+      setTaskTotal(data.total ?? 0);
+    }).catch(() => {});
+    if (!append) {
+      api.get("/task-swaps").then(({ data }) => setSwaps(data.swaps||[])).catch(()=>{});
+      api.get("/skills").then(({ data }) => setSkills(data.skills||[])).catch(()=>{});
+      if (user?.id) {
+        api.get("/tasks", { params: { limit: 100 } }).then(({ data }) => {
+          const mine = data.tasks.filter(t => t.poster.id === user.id);
+          setMyTasks(mine);
+        }).catch(()=>{});
+      }
     }
   };
   useEffect(() => { load(); }, [filter, user?.id]);
@@ -156,6 +167,13 @@ export default function Tasks() {
                 </li>
               ))}
             </ul>
+          )}
+          {tasks.length > 0 && tasks.length < taskTotal && (
+            <div className="text-center mt-4">
+              <button onClick={() => load(tasks.length, true)} className="kc-btn kc-btn-sm kc-btn-ghost">
+                Show more ({taskTotal - tasks.length} remaining)
+              </button>
+            </div>
           )}
         </div>
       )}

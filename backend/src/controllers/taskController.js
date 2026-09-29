@@ -26,6 +26,7 @@ async function createTask(req, res, next) {
     if (req.body.deadline) {
       deadline = new Date(req.body.deadline);
       if (Number.isNaN(deadline.getTime())) return res.status(400).json({ error: "deadline must be a valid date" });
+      if (deadline.getTime() < Date.now()) return res.status(400).json({ error: "deadline must be in the future" });
     }
     if (title.trim().length > 200) return res.status(400).json({ error: "title must be at most 200 characters" });
     if (description.trim().length > 5000) return res.status(400).json({ error: "description must be at most 5000 characters" });
@@ -54,18 +55,24 @@ async function createTask(req, res, next) {
 async function listTasks(req, res, next) {
   try {
     const { category } = req.query || {};
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
     const where = { status: "OPEN" };
     if (category) {
       if (!ALLOWED_CATEGORIES.includes(category)) return res.status(400).json({ error: "Invalid category" });
       where.category = category;
     }
-    const tasks = await prisma.task.findMany({
-      where,
-      include: { poster: { select: { id: true, name: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 50
-    });
-    res.json({ tasks });
+    const [tasks, total] = await Promise.all([
+      prisma.task.findMany({
+        where,
+        include: { poster: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.task.count({ where }),
+    ]);
+    res.json({ tasks, total, limit, offset });
   } catch (err) { next(err); }
 }
 

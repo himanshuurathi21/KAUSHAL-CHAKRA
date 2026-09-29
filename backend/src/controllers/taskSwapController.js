@@ -67,13 +67,20 @@ async function createSwap(req, res, next) {
 
 async function listSwaps(req, res, next) {
   try {
-    const swaps = await prisma.taskSwap.findMany({
-      where: { OR: [{ requesterId: req.userId }, { helperId: req.userId }] },
-      include: swapInclude,
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-    res.json({ swaps });
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const where = { OR: [{ requesterId: req.userId }, { helperId: req.userId }] };
+    const [swaps, total] = await Promise.all([
+      prisma.taskSwap.findMany({
+        where,
+        include: swapInclude,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.taskSwap.count({ where }),
+    ]);
+    res.json({ swaps, total, limit, offset });
   } catch (err) { next(err); }
 }
 
@@ -258,7 +265,18 @@ async function getMessages(req, res, next) {
     const swap = await prisma.taskSwap.findUnique({ where: { id } });
     if (!swap) return res.status(404).json({ error: 'Not found' });
     if (swap.requesterId !== req.userId && swap.helperId !== req.userId) return res.status(403).json({ error: 'Not your swap' });
-    const messages = await prisma.message.findMany({ where: { taskSwapId: id }, include: { sender: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' }, take: 100 });
+    const rawSince = req.query.sinceId;
+    const sinceId = rawSince === undefined ? null : Number(rawSince);
+    if (sinceId !== null && (!Number.isInteger(sinceId) || sinceId < 0)) {
+      return res.status(400).json({ error: 'sinceId must be a non-negative integer' });
+    }
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
+    const messages = await prisma.message.findMany({
+      where: { taskSwapId: id, ...(sinceId ? { id: { gt: sinceId } } : {}) },
+      include: { sender: { select: { id: true, name: true } } },
+      orderBy: { id: 'asc' },
+      take: limit,
+    });
     res.json({ messages });
   } catch (err) { next(err); }
 }
