@@ -22,7 +22,10 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npx prisma generate
+      # validate only reads the schema — a dummy URL satisfies env() lookup.
       - run: npx prisma validate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kaushalchakra?schema=public
       - run: npm test
 
   smoke:
