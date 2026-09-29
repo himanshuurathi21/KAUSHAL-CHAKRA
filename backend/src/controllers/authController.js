@@ -96,6 +96,56 @@ async function logout(req, res) {
   res.json({ ok: true });
 }
 
+/** POST /api/auth/change-password — session-authenticated password change. */
+async function changePassword(req, res, next) {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+      return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+    }
+    const checked = checkCredentials('user@placeholder.local', newPassword);
+    if (checked.error) return res.status(400).json({ error: checked.error });
+
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) return res.status(401).json({ error: 'User no longer exists' });
+    if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { passwordHash: await bcrypt.hash(newPassword, 10) },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/auth/deactivate — soft-delete my own account (DPDP right to
+ * erasure analogue). Requires password confirmation. Sets isActive=false and
+ * clears the session; rows are kept for referential integrity (cycles,
+ * ratings, credits history stay consistent).
+ */
+async function deactivateAccount(req, res, next) {
+  try {
+    const { password } = req.body || {};
+    if (typeof password !== 'string' || !password) {
+      return res.status(400).json({ error: 'Password confirmation is required' });
+    }
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) return res.status(401).json({ error: 'User no longer exists' });
+    if (!(await bcrypt.compare(password, user.passwordHash))) {
+      return res.status(401).json({ error: 'Password is incorrect' });
+    }
+    await prisma.user.update({ where: { id: req.userId }, data: { isActive: false } });
+    clearSessionCookie(res);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 /** GET /api/auth/me — current user (JWT protected). */
 async function me(req, res, next) {
   try {
@@ -129,4 +179,4 @@ function publicUser(user) {
   };
 }
 
-module.exports = { signup, login, logout, me, publicUser };
+module.exports = { signup, login, logout, me, changePassword, deactivateAccount, publicUser };

@@ -2,7 +2,7 @@
 const { requireAuth, requireAdmin } = require("../middleware/auth");
 const { createRating, getUserRatings } = require("../controllers/ratingController");
 const { getMine, markRead, markAllRead } = require("../controllers/notificationController");
-const { getStats, getSkillGaps } = require("../controllers/adminController");
+const { getStats, getSkillGaps, listUsers, updateUserStatus } = require("../controllers/adminController");
 const { getMyCredits, teachNow, redeem, acceptSession, declineSession, completeSession } = require("../controllers/creditController");
 const {
   getQuizQuestions,
@@ -31,6 +31,8 @@ router.post("/notifications/:id/read", requireAuth, markRead);
 // Admin
 router.get("/admin/stats", requireAuth, requireAdmin, getStats);
 router.get("/admin/skill-gaps", requireAuth, requireAdmin, getSkillGaps);
+router.get("/admin/users", requireAuth, requireAdmin, listUsers);
+router.post("/admin/users/:id/status", requireAuth, requireAdmin, updateUserStatus);
 router.get("/admin/reports", requireAuth, requireAdmin, getPendingReports);
 router.post("/admin/reports/:id/resolve", requireAuth, requireAdmin, resolveReport);
 router.post("/admin/certificates/:id/review", requireAuth, requireAdmin, reviewCertificate);

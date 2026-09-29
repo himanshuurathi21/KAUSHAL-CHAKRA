@@ -23,6 +23,9 @@ export default function Admin() {
   const [gaps, setGaps] = useState([]);
   const [error, setError] = useState('');
   const [loaded, setLoaded] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [userQuery, setUserQuery] = useState('');
+  const [userMsg, setUserMsg] = useState('');
 
   useEffect(() => {
     Promise.all([api.get('/admin/stats'), api.get('/admin/skill-gaps').catch(() => ({ data: { gaps: [] } }))])
@@ -32,7 +35,23 @@ export default function Admin() {
       })
       .catch((err) => setError(err.response?.data?.error || 'Failed to load stats'))
       .finally(() => setLoaded(true));
+    loadUsers('');
   }, []);
+
+  const loadUsers = (q) => {
+    api.get('/admin/users', { params: { q, limit: 20 } })
+      .then(({ data }) => setUsers(data.users))
+      .catch(() => {});
+  };
+
+  const setStatus = (id, patch) => {
+    setUserMsg('');
+    api.post(`/admin/users/${id}/status`, patch)
+      .then(({ data }) => {
+        setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...data.user } : u)));
+      })
+      .catch((err) => setUserMsg(err.response?.data?.error || 'Update failed'));
+  };
 
   if (!loaded) {
     return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-muted">Loading stats…</div>;
@@ -131,6 +150,56 @@ export default function Admin() {
           The cyclic engine unlocks skill exchanges that would never happen through simple 1-to-1
           matching — currently {safeComparison.pctWouldNotMatchWithoutCycles ?? '—'}% of matched users.
         </p>
+      </div>
+
+      {/* User moderation */}
+      <div className="kc-card p-5 space-y-4">
+        <h2 className="kc-display text-lg text-ink font-bold">User moderation</h2>
+        <div className="flex gap-2">
+          <input
+            className="kc-input flex-1"
+            placeholder="Search name or email…"
+            value={userQuery}
+            onChange={(e) => { setUserQuery(e.target.value); loadUsers(e.target.value); }}
+          />
+        </div>
+        {userMsg && <p className="kc-alert-error">{userMsg}</p>}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-muted text-xs uppercase tracking-wider border-b border-line">
+                <th className="text-left py-2">User</th>
+                <th className="text-left py-2">Flags</th>
+                <th className="text-right py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id} className="border-b border-line/60">
+                  <td className="py-2">
+                    <span className="font-medium text-ink">{u.name}</span>
+                    <span className="block text-xs text-muted">{u.email}</span>
+                  </td>
+                  <td className="py-2 text-xs text-muted">
+                    {!u.isActive && <span className="kc-badge kc-badge-neutral mr-1">inactive</span>}
+                    {u.creditsFrozen && <span className="kc-badge kc-badge-amber mr-1">frozen</span>}
+                    {u.isAdmin && <span className="kc-badge kc-badge-leaf">admin</span>}
+                    {u.isActive && !u.creditsFrozen && !u.isAdmin && '—'}
+                  </td>
+                  <td className="py-2 text-right space-x-1">
+                    <button onClick={() => setStatus(u.id, { isActive: !u.isActive })} className="kc-btn-sm kc-btn-ghost">
+                      {u.isActive ? 'Deactivate' : 'Reactivate'}
+                    </button>
+                    <button onClick={() => setStatus(u.id, { creditsFrozen: !u.creditsFrozen })} className="kc-btn-sm kc-btn-ghost">
+                      {u.creditsFrozen ? 'Unfreeze' : 'Freeze'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {users.length === 0 && <p className="text-muted text-sm py-2">No users found.</p>}
+        </div>
       </div>
 
       {/* Skills in high demand, low supply */}

@@ -99,8 +99,52 @@ async function main() {
   } else if (!allowDemoReset) {
     console.log('Database already has users — skipping demo-user reset (set SEED_FRESH=1 to force).');
   } else {
-    console.log('Seeding demo users...');
-    const passwordHash = await bcrypt.hash('password123', 10);
+    await seedDemoUsers(skillByName);
+  }
+
+  // Clear old match + feature data so a fresh seed always starts clean.
+  // On an existing database this is skipped unless SEED_FRESH=1 is set —
+  // otherwise every container restart would wipe user progress.
+  // IMPORTANT: quiz questions are taxonomy-like — never delete them here.
+  if (freshDatabase || process.env.SEED_FRESH === '1') {
+    await prisma.matchCycleParticipant.deleteMany();
+    await prisma.matchCycle.deleteMany();
+    await prisma.blockedEdge.deleteMany();
+    await prisma.message.deleteMany();
+    await prisma.notification.deleteMany();
+    await prisma.rating.deleteMany();
+    await prisma.credit.deleteMany();
+    await prisma.creditSession.deleteMany();
+    await prisma.quizAttempt.deleteMany();
+    await prisma.certificate.deleteMany();
+    await prisma.report.deleteMany();
+    await prisma.task.deleteMany();
+    await prisma.skillVerification.deleteMany();
+    console.log('Cleared previous matches, messages, notifications, ratings, credits and verifications.');
+  } else {
+    console.log('Database already in use — kept existing matches/progress (set SEED_FRESH=1 to wipe).');
+  }
+
+  console.log("Seeding quiz questions...");
+  const { getQuiz, quizSkillNames } = require("../src/services/quizBank");
+  for (const skillName of quizSkillNames()) {
+    const skillId = skillByName.get(skillName);
+    if (!skillId) continue;
+    await prisma.quizQuestion.deleteMany({ where: { skillId } });
+    const questions = getQuiz(skillName);
+    for (const q of questions) {
+      await prisma.quizQuestion.create({ data: { skillId, question: q.q, options: q.options, correctOptionIndex: q.answer } });
+    }
+  }
+  console.log("  Quiz questions seeded.");
+  console.log('Run `npm run dev`, then call POST /api/match/run');
+  console.log('to trigger matching and see the 2-way (Kunal <-> Meera), 3-way and 4-way cycles appear.');
+}
+
+/** Seed the 14 demo users + their skills. Only called on fresh DB or SEED_FRESH=1. */
+async function seedDemoUsers(skillByName) {
+  console.log('Seeding demo users...');
+  const passwordHash = await bcrypt.hash('password123', 10);
 
   for (const demo of DEMO_USERS) {
     // Idempotent: wipe the user's skills first, then recreate
@@ -140,45 +184,6 @@ async function main() {
   }
 
   console.log(`  ${DEMO_USERS.length} demo users seeded (password: password123).`);
-  } // end allowDemoReset
-
-  // Clear old match + feature data so a fresh seed always starts clean.
-  // On an existing database this is skipped unless SEED_FRESH=1 is set —
-  // otherwise every container restart would wipe user progress.
-  // IMPORTANT: quiz questions are taxonomy-like — never delete them here.
-  if (freshDatabase || process.env.SEED_FRESH === '1') {
-    await prisma.matchCycleParticipant.deleteMany();
-    await prisma.matchCycle.deleteMany();
-    await prisma.blockedEdge.deleteMany();
-    await prisma.message.deleteMany();
-    await prisma.notification.deleteMany();
-    await prisma.rating.deleteMany();
-    await prisma.credit.deleteMany();
-    await prisma.creditSession.deleteMany();
-    await prisma.quizAttempt.deleteMany();
-    await prisma.certificate.deleteMany();
-    await prisma.report.deleteMany();
-    await prisma.task.deleteMany();
-    await prisma.skillVerification.deleteMany();
-    console.log('Cleared previous matches, messages, notifications, ratings, credits and verifications.');
-  } else {
-    console.log('Database already in use — kept existing matches/progress (set SEED_FRESH=1 to wipe).');
-  }
-
-  console.log("Seeding quiz questions...");
-  const { getQuiz, quizSkillNames } = require("../src/services/quizBank");
-  for (const skillName of quizSkillNames()) {
-    const skillId = skillByName.get(skillName);
-    if (!skillId) continue;
-    await prisma.quizQuestion.deleteMany({ where: { skillId } });
-    const questions = getQuiz(skillName);
-    for (const q of questions) {
-      await prisma.quizQuestion.create({ data: { skillId, question: q.q, options: q.options, correctOptionIndex: q.answer } });
-    }
-  }
-  console.log("  Quiz questions seeded.");
-  console.log('Run `npm run dev`, then call POST /api/match/run');
-  console.log('to trigger matching and see the 2-way (Kunal <-> Meera), 3-way and 4-way cycles appear.');
 }
 
 main()

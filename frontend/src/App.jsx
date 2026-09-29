@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
@@ -6,7 +7,6 @@ import Dashboard from './pages/Dashboard';
 import SetupSkills from './pages/SetupSkills';
 import MatchReview from './pages/MatchReview';
 import Exchanges from './pages/Exchanges';
-import Admin from './pages/Admin';
 import Credits from './pages/Credits';
 import Verify from './pages/Verify';
 import Tasks from './pages/Tasks';
@@ -14,6 +14,9 @@ import Reports from './pages/Reports';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import TaskSwapReview from './pages/TaskSwapReview';
+import Account from './pages/Account';
+// Lazy: pulls recharts (~500kB) out of the main bundle — only downloaded on /admin.
+const Admin = lazy(() => import('./pages/Admin'));
 
 function AppShell() {
   const location = useLocation();
@@ -34,8 +37,9 @@ function AppShell() {
           <Route path="/verify" element={<Protected><Verify /></Protected>} />
           <Route path="/tasks" element={<Protected><Tasks /></Protected>} />
           <Route path="/task-swaps/:id" element={<Protected><TaskSwapReview /></Protected>} />
+          <Route path="/account" element={<Protected><Account /></Protected>} />
           <Route path="/reports" element={<AdminOnly><Reports /></AdminOnly>} />
-          <Route path="/admin" element={<AdminOnly><Admin /></AdminOnly>} />
+          <Route path="/admin" element={<AdminOnly><Suspense fallback={<LoadingGate />}><Admin /></Suspense></AdminOnly>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

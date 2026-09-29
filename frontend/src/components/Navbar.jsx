@@ -20,6 +20,7 @@ const NAV_LINKS = [
   { to: '/tasks', label: 'Tasks' },
   { to: '/verify', label: 'Verify Skills' },
   { to: '/skills', label: 'Edit Skills' },
+  { to: '/account', label: 'Account' },
 ];
 
 export default function Navbar() {

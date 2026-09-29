@@ -87,4 +87,66 @@ async function getSkillGaps(req,res,next){
   }catch(err){next(err);}
 }
 
-module.exports = { getStats, getSkillGaps };
+/**
+ * GET /api/admin/users?q=&limit=&offset= — paginated user list for moderation.
+ * Exposes isActive / creditsFrozen / isAdmin so admins can act without a report.
+ */
+async function listUsers(req, res, next) {
+  try {
+    const q = (req.query.q || '').toString().trim();
+    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const where = q
+      ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] }
+      : {};
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: { id: true, name: true, email: true, department: true, isAdmin: true, isActive: true, creditsFrozen: true, createdAt: true },
+        orderBy: { id: 'asc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.user.count({ where }),
+    ]);
+    res.json({ users, total, limit, offset });
+  } catch (err) { next(err); }
+}
+
+/**
+ * POST /api/admin/users/:id/status — toggle isActive / creditsFrozen / isAdmin.
+ * Guards: admins cannot deactivate/freeze themselves or strip their own admin.
+ */
+async function updateUserStatus(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid user id' });
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (id === req.userId && (req.body.isActive === false || req.body.creditsFrozen === true || req.body.isAdmin === false)) {
+      return res.status(400).json({ error: 'You cannot deactivate, freeze, or demote yourself' });
+    }
+    const data = {};
+    if (req.body.isActive !== undefined) {
+      if (typeof req.body.isActive !== 'boolean') return res.status(400).json({ error: 'isActive must be boolean' });
+      data.isActive = req.body.isActive;
+    }
+    if (req.body.creditsFrozen !== undefined) {
+      if (typeof req.body.creditsFrozen !== 'boolean') return res.status(400).json({ error: 'creditsFrozen must be boolean' });
+      data.creditsFrozen = req.body.creditsFrozen;
+    }
+    if (req.body.isAdmin !== undefined) {
+      if (typeof req.body.isAdmin !== 'boolean') return res.status(400).json({ error: 'isAdmin must be boolean' });
+      data.isAdmin = req.body.isAdmin;
+    }
+    if (Object.keys(data).length === 0) return res.status(400).json({ error: 'Nothing to update (isActive, creditsFrozen, isAdmin)' });
+    const updated = await prisma.user.update({
+      where: { id },
+      data,
+      select: { id: true, name: true, email: true, isAdmin: true, isActive: true, creditsFrozen: true },
+    });
+    res.json({ user: updated });
+  } catch (err) { next(err); }
+}
+
+module.exports = { getStats, getSkillGaps, listUsers, updateUserStatus };

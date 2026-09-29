@@ -78,6 +78,7 @@ Suggested demo flow:
 
 ```
 POST /api/auth/signup | /login | /logout  GET /api/auth/me
+POST /api/auth/change-password | /deactivate (self, password-confirmed)
 GET  /api/skills                           PUT /api/profile/skills
 PUT  /api/profile/preference               GET /api/profile
 POST /api/match/run                        GET /api/match/status
@@ -87,7 +88,8 @@ POST /api/cycles/:id/messages              GET  /api/cycles/:id/messages?sinceId
 POST /api/ratings                          GET  /api/users/:id/ratings
 GET  /api/notifications                    POST /api/notifications/read-all
 POST /api/notifications/:id/read
-GET  /api/admin/stats  | /admin/skill-gaps (admin only)
+GET  /api/admin/stats | /admin/skill-gaps | /admin/users (admin only)
+POST /api/admin/users/:id/status (admin: toggle isActive/creditsFrozen/isAdmin)
 GET  /api/credits | /credits/progress      POST /api/credits/teach | /redeem
 POST /api/credits/sessions/:id/accept|decline|complete
 GET  /api/verify/quiz/:skillId             POST /api/verify/quiz/:skillId/submit
